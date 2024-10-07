@@ -8,8 +8,7 @@
 #include "config.h"
 
 const uint8_t THIS_NODE_NUM = 1;
-const uint8_t TOTAL_NO_NODES = 5;
-const uint8_t NO_OF_NODES_TO_MONITOR = 3;
+const uint8_t TOTAL_NO_OF_NODES = 5;
 
 // Node addresses
 const uint8_t THIS_NODE_ADDRESS[5] = "NRF14";
