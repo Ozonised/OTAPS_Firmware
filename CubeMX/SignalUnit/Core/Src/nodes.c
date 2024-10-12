@@ -19,6 +19,7 @@ typedef struct node {
 	Signal signal;
 	uint8_t nodeID;
 	uint8_t nodeReady;
+	uint8_t signalReset;
 	uint8_t axleCount;
 	uint8_t signalData[3];
 } Nodes;
@@ -172,4 +173,45 @@ bool isPayLoadValid(Payload *p, uint8_t communicatingNodeID) {
 		return false;
 
 	return true;
+}
+
+/**
+ * @brief Extracts the payload data into the respective Node object
+ *
+ * @param p pointer to Payload object
+ * @param communicatingNodeID ID of the node whose payload to extract
+ *
+ * @return None
+ */
+void extractPayloadData(Payload *p, uint8_t communicatingNodeID) {
+	uint8_t temp;
+
+	if (thisNode.next != NULL && communicatingNodeID == thisNode.next->nodeID) {
+		thisNode.next->axleCount = p->receivePayload[AXLE_COUNT_INDEX];
+
+		temp = p->receivePayload[STATUS_P3_NODE_INDEX];
+		thisNode.next->nodeReady = __GET_NODE_READY_BIT_STATE(temp);
+		thisNode.next->signalReset = __GET_SIGNAL_RESET_BIT_STATE(temp);
+
+		temp = p->receivePayload[C_N1_NODE_INDEX];
+		thisNode.signalData[1] = (temp & 0x0F);		// signal state of the first node after the next node
+		thisNode.signalData[0] = (temp >> 4);		// signal state of the next node
+
+		temp = p->receivePayload[N2_N3_NODE_INDEX];
+		thisNode.signalData[2] = (temp >> 4);		// signal state of the second node after next node
+
+	} else if (thisNode.prev != NULL && communicatingNodeID == thisNode.prev->nodeID) {
+		thisNode.prev->axleCount = p->receivePayload[AXLE_COUNT_INDEX];
+
+		temp = p->receivePayload[STATUS_P3_NODE_INDEX];
+		thisNode.prev->nodeReady = __GET_NODE_READY_BIT_STATE(temp);
+		thisNode.prev->signalReset = __GET_SIGNAL_RESET_BIT_STATE(temp);
+
+		temp = p->receivePayload[C_N1_NODE_INDEX];
+		thisNode.signalData[0] = (temp >> 4);		// signal state of the previous node
+
+		temp = p->receivePayload[P2_P1_NODE_INDEX];
+		thisNode.signalData[1] = (temp & 0x0F);		// signal state of the first node after the previous node
+		thisNode.signalData[2] = (temp >> 4);		// signal state of the second node after previous node
+	}
 }
