@@ -17,7 +17,7 @@ typedef struct node {
 	struct node *prev;
 	struct node *next;
 	Signal signal;
-	uint8_t nodeAddr;
+	uint8_t nodeID;
 	uint8_t nodeReady;
 	uint8_t axleCount;
 	uint8_t signalData[3];
@@ -53,7 +53,7 @@ void signalStateInit(void) {
 
 	currentSignalState = &green;
 
-	thisNode.nodeAddr = THIS_NODE_NUM;
+	thisNode.nodeID = THIS_NODE_NUM;
 	thisNode.axleCount = axleCounter;
 	thisNode.signal = SIGNAL_NOT_KNOWN;
 	thisNode.nodeReady = false;
@@ -63,7 +63,7 @@ void signalStateInit(void) {
 		thisNode.next = NULL;
 		thisNode.prev = &prevNode;
 		prevNode.signal = SIGNAL_NOT_KNOWN;
-		prevNode.nodeAddr = THIS_NODE_NUM - 1;
+		prevNode.nodeID = THIS_NODE_NUM - 1;
 		prevNode.axleCount = 0;
 		nextNode.nodeReady = false;
 		prevNode.next = NULL;
@@ -74,7 +74,7 @@ void signalStateInit(void) {
 	} else if (THIS_NODE_NUM == 1) {
 		thisNode.next = &nextNode;
 		nextNode.signal = SIGNAL_NOT_KNOWN;
-		nextNode.nodeAddr = THIS_NODE_NUM + 1;
+		nextNode.nodeID = THIS_NODE_NUM + 1;
 		nextNode.axleCount = 0;
 		nextNode.nodeReady = false;
 		nextNode.next = NULL;
@@ -86,7 +86,7 @@ void signalStateInit(void) {
 		thisNode.next = &nextNode;
 		thisNode.prev = &prevNode;
 
-		nextNode.nodeAddr = (THIS_NODE_NUM + 1);
+		nextNode.nodeID = (THIS_NODE_NUM + 1);
 		nextNode.signal = SIGNAL_NOT_KNOWN;
 		nextNode.axleCount = 0;
 		nextNode.nodeReady = false;
@@ -96,7 +96,7 @@ void signalStateInit(void) {
 				sizeof(nextNode.signalData));
 
 		prevNode.signal = SIGNAL_NOT_KNOWN;
-		prevNode.nodeAddr = (THIS_NODE_NUM - 1);
+		prevNode.nodeID = (THIS_NODE_NUM - 1);
 		prevNode.axleCount = 0;
 		nextNode.nodeReady = false;
 		prevNode.next = NULL;
@@ -106,54 +106,70 @@ void signalStateInit(void) {
 	}
 }
 
-bool isNodeReady(void)
-{
-    uint8_t signals[2 * NO_OF_NODES_TO_MONITOR];
-    uint8_t noOfNodesBefore = 0, noOfNodesAfter = 0;
+bool isNodeReady(void) {
+	uint8_t signals[2 * NO_OF_NODES_TO_MONITOR];
+	uint8_t noOfNodesBefore = 0, noOfNodesAfter = 0;
 
-    // finding number of nodes before this node
-    if (THIS_NODE_NUM > NO_OF_NODES_TO_MONITOR) {
-    	noOfNodesBefore = NO_OF_NODES_TO_MONITOR;
-    }
-    else {
-    	noOfNodesBefore = THIS_NODE_NUM - 1;
-    }
+	// finding number of nodes before this node
+	if (THIS_NODE_NUM > NO_OF_NODES_TO_MONITOR) {
+		noOfNodesBefore = NO_OF_NODES_TO_MONITOR;
+	} else {
+		noOfNodesBefore = THIS_NODE_NUM - 1;
+	}
 
-    // finding number of nodes after this node
-    if (TOTAL_NO_OF_NODES - THIS_NODE_NUM > NO_OF_NODES_TO_MONITOR) {
-    	noOfNodesAfter = NO_OF_NODES_TO_MONITOR;
-    }
-    else {
-    	noOfNodesAfter = TOTAL_NO_OF_NODES - THIS_NODE_NUM;
-    }
+	// finding number of nodes after this node
+	if (TOTAL_NO_OF_NODES - THIS_NODE_NUM > NO_OF_NODES_TO_MONITOR) {
+		noOfNodesAfter = NO_OF_NODES_TO_MONITOR;
+	} else {
+		noOfNodesAfter = TOTAL_NO_OF_NODES - THIS_NODE_NUM;
+	}
 
-    memset(signals, SIGNAL_NOT_KNOWN, sizeof(signals));
+	memset(signals, SIGNAL_NOT_KNOWN, sizeof(signals));
 
-    if (thisNode.prev != NULL)
-    {
-        memcpy(signals, thisNode.prev->signalData, noOfNodesBefore);
-    }
-    if (thisNode.next != NULL)
-    {
-        memcpy(&signals[noOfNodesBefore], thisNode.next->signalData, noOfNodesAfter);
-    }
+	if (thisNode.prev != NULL) {
+		memcpy(signals, thisNode.prev->signalData, noOfNodesBefore);
+	}
+	if (thisNode.next != NULL) {
+		memcpy(&signals[noOfNodesBefore], thisNode.next->signalData,
+				noOfNodesAfter);
+	}
 
-    // if anyone of the signals is not known then the node is not ready
-    for (uint8_t i = 0; i < (noOfNodesBefore + noOfNodesAfter); i++)
-    {
-        if (signals[i] == SIGNAL_NOT_KNOWN)
-            return false;
-    }
+	// if anyone of the signals is not known then the node is not ready
+	for (uint8_t i = 0; i < (noOfNodesBefore + noOfNodesAfter); i++) {
+		if (signals[i] == SIGNAL_NOT_KNOWN)
+			return false;
+	}
 
-    return true;
+	return true;
 }
+/*
+ * @brief Checks if payload is valid
+ *
+ * @param p pointer to Payload object
+ * @param communicatingNodeID ID of the node whose payload to verify
+ *
+ * @return bool payload valid
+ * 		   - true payload is valid
+ * 		   - false payload is invalid
+ */
+bool isPayLoadValid(Payload *p, uint8_t communicatingNodeID) {
+	// validate if payload received from current node
+	if (p->receivePayload[SOURCE_ID_INDEX] != communicatingNodeID
+			&& p->receivePayload[DESTINATION_ID_INDEX] != thisNode.nodeID)
+		return false;
 
-bool isPayLoadValid(Payload *p, uint8_t communicatingNodeAddress)
-{
-    if (p->receivePayload[0] != communicatingNodeAddress && p->receivePayload[1] != thisNode.nodeAddr)
-        return false;
+	uint8_t checksum = p->receivePayload[CHECKSUM_INDEX];
+	unsigned short sum = 0;
 
-    // checksum validation
+	// validate checksum
+	for (uint8_t i = SOURCE_ID_INDEX; i < CHECKSUM_INDEX; i++) {
+		sum += p->receivePayload[i];
+		sum += (sum >> 8);	// one`s complement addition
+	}
 
-    return true;
+	// for a correct payload, sum + the received checksum should be equal to 255
+	if ((sum + p->receivePayload[CHECKSUM_INDEX]) & 0xFF != 0xFF)
+		return false;
+
+	return true;
 }
