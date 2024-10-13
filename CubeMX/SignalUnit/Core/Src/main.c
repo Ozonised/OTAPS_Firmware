@@ -243,7 +243,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOA, NRF_CSN3_Pin|NRF_CSN2_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(NRF_CE1_GPIO_Port, NRF_CE1_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, NRF_CE1_Pin|LED_YELLOW1_Pin|LED_GREEN_Pin|LED_YELLOW2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(NRF_CSN1_GPIO_Port, NRF_CSN1_Pin, GPIO_PIN_SET);
@@ -263,8 +263,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(NRF_IRQ2_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : NRF_CE1_Pin NRF_CSN1_Pin */
-  GPIO_InitStruct.Pin = NRF_CE1_Pin|NRF_CSN1_Pin;
+  /*Configure GPIO pins : NRF_CE1_Pin NRF_CSN1_Pin LED_YELLOW1_Pin LED_GREEN_Pin
+                           LED_YELLOW2_Pin */
+  GPIO_InitStruct.Pin = NRF_CE1_Pin|NRF_CSN1_Pin|LED_YELLOW1_Pin|LED_GREEN_Pin
+                          |LED_YELLOW2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;

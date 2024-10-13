@@ -81,6 +81,12 @@ void Error_Handler(void);
 #define SIGNAL_RST_SW_EXTI_IRQn EXTI15_10_IRQn
 #define LED_RED_Pin GPIO_PIN_15
 #define LED_RED_GPIO_Port GPIOA
+#define LED_YELLOW1_Pin GPIO_PIN_3
+#define LED_YELLOW1_GPIO_Port GPIOB
+#define LED_GREEN_Pin GPIO_PIN_4
+#define LED_GREEN_GPIO_Port GPIOB
+#define LED_YELLOW2_Pin GPIO_PIN_5
+#define LED_YELLOW2_GPIO_Port GPIOB
 #define NRF_IRQ3_Pin GPIO_PIN_9
 #define NRF_IRQ3_GPIO_Port GPIOB
 
