@@ -307,3 +307,150 @@ void updateTxPayload(Payload *p, uint8_t communicatingNodeID)
 				| thisNode.signalData[2]; // signal data of the second and third node after the current node
 	}
 }
+
+/**
+ * @brief updates the signal state
+ *
+ * @param None
+ *
+ * @return None
+ */
+void updateSignalState(void)
+{
+    SignalState temp = *currentSignalState;
+    thisNode.axleCount = axleCounter;
+
+    switch (trainDir)
+    {
+    case TO_HIGHER_NODE:
+
+        switch (temp.state)
+        {
+        case RED:
+            if (thisNode.axleCount == thisNode.next->axleCount)
+            {
+                // if train is moving towards higher node and the axle counter from the next node is equal to this node
+                // than the train has passed this signal and the signal after
+                if (temp.next != NULL)
+                    currentSignalState = temp.next;
+                axleCounter = 0;
+                thisNode.axleCount = 0;
+            }
+            break;
+
+        case YELLOW:
+            if (thisNode.next->signal == YELLOW)
+            {
+                // if next node is yellow than this node should now be double yellow
+                if (temp.next != NULL)
+                    currentSignalState = temp.next;
+            }
+
+            break;
+
+        case DOUBLE_YELLOW:
+            if (thisNode.next->signal == DOUBLE_YELLOW)
+            {
+                // if the next node is double yellow then this node should now be green
+                if (temp.next != NULL)
+                {
+                    currentSignalState = temp.next;
+                }
+            }
+            break;
+
+        case GREEN:
+            trainDir = TRAIN_DIR_NOT_KNOWN;
+            break;
+
+        default:
+            break;
+        }
+
+        break;
+
+    case TO_LOWER_NODE:
+        switch (temp.state)
+        {
+        case RED:
+            if (thisNode.axleCount == thisNode.prev->axleCount)
+            {
+                // if train is moving towards lower node and the axle counter from the previous node is equal to this node
+                // than the train has passed this signal and the signal before
+                if (temp.next != NULL)
+                    currentSignalState = temp.next;
+                axleCounter = 0;
+                thisNode.axleCount = 0;
+            }
+            break;
+
+        case YELLOW:
+            if (thisNode.prev->signal == YELLOW)
+            {
+                if (temp.next != NULL)
+                    currentSignalState = temp.next;
+            }
+
+            break;
+
+        case DOUBLE_YELLOW:
+            if (thisNode.prev->signal == DOUBLE_YELLOW)
+            {
+                if (temp.next != NULL)
+                    currentSignalState = temp.next;
+            }
+            break;
+
+        case GREEN:
+            trainDir = TRAIN_DIR_NOT_KNOWN;
+            break;
+
+        default:
+            break;
+        }
+
+        break;
+
+    default:
+        break;
+    }
+}
+
+/**
+ * @brief Sets the signal lights as per the signal state
+ *
+ * @param None
+ *
+ * @return None
+ */
+void setSignalLeds(void)
+{
+    SignalState temp = *currentSignalState;
+    switch (temp.state)
+    {
+    case RED:
+        HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
+        HAL_GPIO_WritePin(LED_YELLOW1_GPIO_Port, LED_GREEN_Pin | LED_YELLOW1_Pin | LED_YELLOW2_Pin, GPIO_PIN_RESET);
+        break;
+
+    case YELLOW:
+        HAL_GPIO_WritePin(LED_YELLOW1_GPIO_Port, LED_YELLOW1_Pin, GPIO_PIN_SET);
+        HAL_GPIO_WritePin(LED_YELLOW1_GPIO_Port, LED_GREEN_Pin | LED_YELLOW2_Pin, GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);
+        break;
+
+    case DOUBLE_YELLOW:
+        HAL_GPIO_WritePin(LED_YELLOW1_GPIO_Port, LED_YELLOW1_Pin | LED_YELLOW2_Pin, GPIO_PIN_SET);
+        HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);
+        break;
+
+    case GREEN:
+        HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
+        HAL_GPIO_WritePin(LED_YELLOW1_GPIO_Port, LED_YELLOW1_Pin | LED_YELLOW2_Pin, GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);
+        break;
+    default:
+        break;
+    }
+}
