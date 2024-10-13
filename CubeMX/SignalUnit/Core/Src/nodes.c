@@ -41,6 +41,14 @@ SignalState red, doubleYellow, yellow, green;
 volatile SignalState *currentSignalState;
 volatile TrainDirection trainDir = TRAIN_DIR_NOT_KNOWN;
 
+/**
+ * @brief calculates 1's complement checksum
+ *
+ * @param p pointer to buffer
+ * @param len no. of bytes
+ *
+ * @return uint8_t returns the 1's complement checksum
+ */
 static uint8_t getChecksum(uint8_t p[], uint8_t len)
 {
 	unsigned short sum = 0;
@@ -319,6 +327,9 @@ void updateTxPayload(Payload *p, uint8_t communicatingNodeID)
 		p->transmitPayload[N2_N3_NODE_INDEX] = (thisNode.signalData[1] << 4)
 				| thisNode.signalData[2]; // signal data of the second and third node after the current node
 	}
+
+	//8th byte
+	p->transmitPayload[CHECKSUM_INDEX] = getChecksum(p->transmitPayload, 7);
 }
 
 /**
