@@ -1,11 +1,11 @@
 #include "nodes.h"
 
-static volatile uint16_t axleCounter = 0;
+volatile uint16_t axleCounter = 0;
+volatile SignalState *currentSignalState;
+volatile TrainDirection trainDir = TRAIN_DIR_NOT_KNOWN;
 
 Nodes thisNode, prevNode, nextNode;
 SignalState red, doubleYellow, yellow, green;
-volatile SignalState *currentSignalState;
-volatile TrainDirection trainDir = TRAIN_DIR_NOT_KNOWN;
 
 /**
  * @brief calculates 1's complement checksum
@@ -25,7 +25,7 @@ static uint8_t getChecksum(uint8_t p[], uint8_t len)
 		sum += (sum >> 8);	// one`s complement addition
 	}
 	sum = ~sum;
-	return (uint8_t)sum;
+	return (uint8_t) sum;
 }
 
 void signalStateInit(void)
@@ -63,8 +63,7 @@ void signalStateInit(void)
 		nextNode.nodeReady = false;
 		prevNode.next = NULL;
 		prevNode.prev = NULL;
-		memset(prevNode.signalData, SIGNAL_NOT_KNOWN,
-				sizeof(prevNode.signalData));
+		memset(prevNode.signalData, SIGNAL_NOT_KNOWN, sizeof(prevNode.signalData));
 
 	} else if (THIS_NODE_NUM == 1)
 	{
@@ -75,8 +74,7 @@ void signalStateInit(void)
 		nextNode.nodeReady = false;
 		nextNode.next = NULL;
 		nextNode.prev = NULL;
-		memset(nextNode.signalData, SIGNAL_NOT_KNOWN,
-				sizeof(nextNode.signalData));
+		memset(nextNode.signalData, SIGNAL_NOT_KNOWN, sizeof(nextNode.signalData));
 
 	} else
 	{
@@ -89,8 +87,7 @@ void signalStateInit(void)
 		nextNode.nodeReady = false;
 		nextNode.next = NULL;
 		nextNode.prev = NULL;
-		memset(nextNode.signalData, SIGNAL_NOT_KNOWN,
-				sizeof(nextNode.signalData));
+		memset(nextNode.signalData, SIGNAL_NOT_KNOWN, sizeof(nextNode.signalData));
 
 		prevNode.signal = SIGNAL_NOT_KNOWN;
 		prevNode.nodeID = PREV_NODE_ID;
@@ -98,8 +95,7 @@ void signalStateInit(void)
 		nextNode.nodeReady = false;
 		prevNode.next = NULL;
 		prevNode.prev = NULL;
-		memset(prevNode.signalData, SIGNAL_NOT_KNOWN,
-				sizeof(prevNode.signalData));
+		memset(prevNode.signalData, SIGNAL_NOT_KNOWN, sizeof(prevNode.signalData));
 	}
 }
 
@@ -143,8 +139,7 @@ bool isNodeReady(void)
 	}
 	if (thisNode.next != NULL)
 	{
-		memcpy(&signals[noOfNodesBefore], thisNode.next->signalData,
-				noOfNodesAfter);
+		memcpy(&signals[noOfNodesBefore], thisNode.next->signalData, noOfNodesAfter);
 	}
 
 	// if anyone of the signals is not known then the node is not ready
@@ -214,10 +209,9 @@ void extractPayloadData(Payload *p, uint8_t communicatingNodeID)
 		thisNode.signalData[0] = (temp >> 4);	// signal state of the next node
 
 		temp = p->receivePayload[N2_N3_NODE_INDEX];
-		thisNode.signalData[2] = (temp >> 4);// signal state of the second node after next node
+		thisNode.signalData[2] = (temp >> 4);	// signal state of the second node after next node
 
-	} else if (thisNode.prev != NULL
-			&& communicatingNodeID == thisNode.prev->nodeID)
+	} else if (thisNode.prev != NULL && communicatingNodeID == thisNode.prev->nodeID)
 	{
 		thisNode.prev->axleCount = p->receivePayload[AXLE_COUNT_INDEX];
 
@@ -226,11 +220,11 @@ void extractPayloadData(Payload *p, uint8_t communicatingNodeID)
 		thisNode.prev->signalReset = __GET_SIGNAL_RESET_BIT_STATE(temp);
 
 		temp = p->receivePayload[C_N1_NODE_INDEX];
-		thisNode.signalData[0] = (temp >> 4);// signal state of the previous node
+		thisNode.signalData[0] = (temp >> 4);	// signal state of the previous node
 
 		temp = p->receivePayload[P2_P1_NODE_INDEX];
 		thisNode.signalData[1] = (temp & 0x0F);	// signal state of the first node after the previous node
-		thisNode.signalData[2] = (temp >> 4);// signal state of the second node after previous node
+		thisNode.signalData[2] = (temp >> 4);	// signal state of the second node after previous node
 	}
 }
 
@@ -269,27 +263,22 @@ void updateTxPayload(Payload *p, uint8_t communicatingNodeID)
 		p->transmitPayload[STATUS_P3_NODE_INDEX] |= (1 << __NODE_READY_BIT_INDEX);
 	} else
 	{
-		p->transmitPayload[STATUS_P3_NODE_INDEX] &= ~(1
-				<< __NODE_READY_BIT_INDEX);
+		p->transmitPayload[STATUS_P3_NODE_INDEX] &= ~(1 << __NODE_READY_BIT_INDEX);
 	}
 
 	// 4th byte
 	// set the signal reset bit only if it is the first or the last node
-	if (thisNode.signalReset
-			&& (THIS_NODE_NUM == 1 || THIS_NODE_NUM == TOTAL_NO_OF_NODES))
+	if (thisNode.signalReset && (THIS_NODE_NUM == 1 || THIS_NODE_NUM == TOTAL_NO_OF_NODES))
 	{
-		p->transmitPayload[STATUS_P3_NODE_INDEX] |= (1
-				<< __SIGNAL_RESET_BIT_INDEX);
+		p->transmitPayload[STATUS_P3_NODE_INDEX] |= (1 << __SIGNAL_RESET_BIT_INDEX);
 	}
 
 	if (thisNode.prev != NULL)
 	{
 		// 4th byte
-		p->transmitPayload[STATUS_P3_NODE_INDEX] |= (0x0F
-				& thisNode.prev->signalData[2]); // signal data of the third node before the current node
+		p->transmitPayload[STATUS_P3_NODE_INDEX] |= (0x0F & thisNode.prev->signalData[2]); // signal data of the third node before the current node
 		// 5th byte
-		p->transmitPayload[P2_P1_NODE_INDEX] = (thisNode.prev->signalData[1]
-				<< 4) | thisNode.prev->signalData[0]; // signal data of the second and first node before the current node
+		p->transmitPayload[P2_P1_NODE_INDEX] = (thisNode.prev->signalData[1] << 4) | thisNode.prev->signalData[0]; // signal data of the second and first node before the current node
 	}
 	// 6th byte
 	p->transmitPayload[C_N1_NODE_INDEX] = ((uint8_t) thisNode.signal) << 4;	// state of current signal
@@ -299,8 +288,7 @@ void updateTxPayload(Payload *p, uint8_t communicatingNodeID)
 		// 6th byte
 		p->transmitPayload[C_N1_NODE_INDEX] |= (0x0F & thisNode.signalData[0]); // signal data of the first node after the current node
 		// 7th byte
-		p->transmitPayload[N2_N3_NODE_INDEX] = (thisNode.signalData[1] << 4)
-				| thisNode.signalData[2]; // signal data of the second and third node after the current node
+		p->transmitPayload[N2_N3_NODE_INDEX] = (thisNode.signalData[1] << 4) | thisNode.signalData[2]; // signal data of the second and third node after the current node
 	}
 
 	//8th byte
@@ -430,20 +418,19 @@ void setSignalLeds(void)
 	case RED:
 		HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
 		HAL_GPIO_WritePin(LED_YELLOW1_GPIO_Port,
-				LED_GREEN_Pin | LED_YELLOW1_Pin | LED_YELLOW2_Pin,
-				GPIO_PIN_RESET);
+		LED_GREEN_Pin | LED_YELLOW1_Pin | LED_YELLOW2_Pin, GPIO_PIN_RESET);
 		break;
 
 	case YELLOW:
 		HAL_GPIO_WritePin(LED_YELLOW1_GPIO_Port, LED_YELLOW1_Pin, GPIO_PIN_SET);
 		HAL_GPIO_WritePin(LED_YELLOW1_GPIO_Port,
-				LED_GREEN_Pin | LED_YELLOW2_Pin, GPIO_PIN_RESET);
+		LED_GREEN_Pin | LED_YELLOW2_Pin, GPIO_PIN_RESET);
 		HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);
 		break;
 
 	case DOUBLE_YELLOW:
 		HAL_GPIO_WritePin(LED_YELLOW1_GPIO_Port,
-				LED_YELLOW1_Pin | LED_YELLOW2_Pin, GPIO_PIN_SET);
+		LED_YELLOW1_Pin | LED_YELLOW2_Pin, GPIO_PIN_SET);
 		HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
 		HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);
 		break;
@@ -451,7 +438,7 @@ void setSignalLeds(void)
 	case GREEN:
 		HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_SET);
 		HAL_GPIO_WritePin(LED_YELLOW1_GPIO_Port,
-				LED_YELLOW1_Pin | LED_YELLOW2_Pin, GPIO_PIN_RESET);
+		LED_YELLOW1_Pin | LED_YELLOW2_Pin, GPIO_PIN_RESET);
 		HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_RESET);
 		break;
 	default:
