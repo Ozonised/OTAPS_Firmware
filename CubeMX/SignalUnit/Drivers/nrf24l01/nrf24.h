@@ -256,7 +256,7 @@ static inline uint8_t nRF24_LL_RW(NRF24 *nrf24, uint8_t data)
 {
 	// Wait until TX buffer is empty
 	uint8_t result;
-	if (HAL_SPI_TransmitReceive(nrf24->hspi, &data, &result, 1, 2000) != HAL_OK)
+	if (HAL_SPI_TransmitReceive(nrf24->hspi, &data, &result, 1, 50) != HAL_OK)
 	{
 		Error_Handler();
 	};
