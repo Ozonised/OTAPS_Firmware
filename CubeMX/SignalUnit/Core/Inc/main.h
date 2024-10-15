@@ -63,6 +63,7 @@ void Error_Handler(void);
 #define NRF_CSN3_GPIO_Port GPIOA
 #define NRF_IRQ2_Pin GPIO_PIN_2
 #define NRF_IRQ2_GPIO_Port GPIOA
+#define NRF_IRQ2_EXTI_IRQn EXTI2_IRQn
 #define NRF_CE2_Pin GPIO_PIN_3
 #define NRF_CE2_GPIO_Port GPIOA
 #define NRF_CSN2_Pin GPIO_PIN_4
@@ -73,12 +74,12 @@ void Error_Handler(void);
 #define NRF_CSN1_GPIO_Port GPIOB
 #define NRF_IRQ1_Pin GPIO_PIN_10
 #define NRF_IRQ1_GPIO_Port GPIOB
+#define NRF_IRQ1_EXTI_IRQn EXTI15_10_IRQn
 #define PROX_SNSR_Pin GPIO_PIN_12
 #define PROX_SNSR_GPIO_Port GPIOB
 #define PROX_SNSR_EXTI_IRQn EXTI15_10_IRQn
 #define SIGNAL_RST_SW_Pin GPIO_PIN_13
 #define SIGNAL_RST_SW_GPIO_Port GPIOB
-#define SIGNAL_RST_SW_EXTI_IRQn EXTI15_10_IRQn
 #define LED_RED_Pin GPIO_PIN_15
 #define LED_RED_GPIO_Port GPIOA
 #define LED_YELLOW1_Pin GPIO_PIN_3
@@ -89,6 +90,7 @@ void Error_Handler(void);
 #define LED_YELLOW2_GPIO_Port GPIOB
 #define NRF_IRQ3_Pin GPIO_PIN_9
 #define NRF_IRQ3_GPIO_Port GPIOB
+#define NRF_IRQ3_EXTI_IRQn EXTI9_5_IRQn
 
 /* USER CODE BEGIN Private defines */
 
