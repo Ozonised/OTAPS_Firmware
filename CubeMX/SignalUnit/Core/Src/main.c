@@ -407,13 +407,19 @@ static void inline radioInit(NRF24 *nrf24, const uint8_t *address, uint8_t RFCha
 		nRF24_SetCRCScheme(nrf24, nRF24_CRC_2byte);
 		nRF24_SetTXPower(nrf24, NRF24_TX_PWR);
 		nRF24_SetAutoRetr(nrf24, NRF24_AUTO_RETRY_DELAY, NRF24_AUTO_RETRY_COUNT);
-		nRF24_SetAddr(nrf24, nRF24_PIPETX, address);
+
+		if (operationMode == nRF24_MODE_TX)
+			nRF24_SetAddr(nrf24, nRF24_PIPETX, address);
+
 		nRF24_SetAddr(nrf24, nRF24_PIPE0, address);
 		nRF24_EnableAA(nrf24, nRF24_PIPE0);
 		nRF24_SetOperationalMode(nrf24, operationMode);
 		nRF24_SetDynamicPayloadLength(nrf24, nRF24_DPL_ON);
 		nRF24_SetPayloadWithAck(nrf24, 1);
 		nRF24_SetPowerMode(nrf24, nRF24_PWR_UP);
+
+		if (operationMode == nRF24_MODE_RX)
+			nRF24_CE_H(nrf24);
 	}
 }
 
@@ -520,9 +526,9 @@ static void inline masterNode(void)
 
 static void inline slaveNode(void)
 {
-	static unsigned long currentMillis, prevTxMillis;
+	uint8_t payloadLength = PAYLOAD_LENGTH;
+	bool payload1Valid = false, payload2Valid = false;
 
-	currentMillis = HAL_GetTick();
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
@@ -555,6 +561,8 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 			axleCounter++;
 		}
 
+		// setting currentSignalState to RED if not already RED
+		// finding train direction, whether moving from higher node to lower node or vice versa
 		if (currentSignalState->state != RED)
 		{
 			currentSignalState = &red;
@@ -575,8 +583,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 				{
 					trainDir = TRAIN_DIR_NOT_KNOWN;
 				}
-			}
-			else if (THIS_NODE_NUM == TOTAL_NO_OF_NODES)
+			} else if (THIS_NODE_NUM == TOTAL_NO_OF_NODES)
 			{
 				// for last node
 				// check prev node axle counter
@@ -592,8 +599,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 				{
 					trainDir = TRAIN_DIR_NOT_KNOWN;
 				}
-			}
-			else
+			} else
 			{
 				// for  center node
 				// check if prev node axle counter is greater than next node axle counter, train is moving towards higher node
