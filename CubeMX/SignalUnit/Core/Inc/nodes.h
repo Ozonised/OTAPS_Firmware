@@ -53,6 +53,10 @@ typedef struct
 extern Nodes thisNode;
 extern SignalState red, doubleYellow, yellow, green;
 
+extern volatile uint16_t axleCounter;
+extern volatile SignalState *currentSignalState;
+extern volatile TrainDirection trainDir;
+
 void signalStateInit(void);
 bool isNodeReady(void);
 bool isPayLoadValid(Payload *p, uint8_t communicatingNodeID);
