@@ -50,7 +50,8 @@ typedef struct
 	uint8_t transmitPayload[PAYLOAD_LENGTH];
 } Payload;
 
-extern Nodes thisNode, prevNode, nextNode;
+extern Nodes thisNode;
+extern SignalState red, doubleYellow, yellow, green;
 
 void signalStateInit(void);
 bool isNodeReady(void);

@@ -4,7 +4,8 @@ volatile uint16_t axleCounter = 0;
 volatile SignalState *currentSignalState;
 volatile TrainDirection trainDir = TRAIN_DIR_NOT_KNOWN;
 
-Nodes thisNode, prevNode, nextNode;
+Nodes thisNode;
+static Nodes prevNode, nextNode;
 SignalState red, doubleYellow, yellow, green;
 
 /**
@@ -205,11 +206,11 @@ void extractPayloadData(Payload *p, uint8_t communicatingNodeID)
 		thisNode.next->signalReset = __GET_SIGNAL_RESET_BIT_STATE(temp);
 
 		temp = p->receivePayload[C_N1_NODE_INDEX];
-		thisNode.signalData[1] = (temp & 0x0F);	// signal state of the first node after the next node
-		thisNode.signalData[0] = (temp >> 4);	// signal state of the next node
+		thisNode.next->signalData[1] = (temp & 0x0F);	// signal state of the first node after the next node
+		thisNode.next->signalData[0] = (temp >> 4);	// signal state of the next node, i.e, the node that transmitted the data
 
 		temp = p->receivePayload[N2_N3_NODE_INDEX];
-		thisNode.signalData[2] = (temp >> 4);	// signal state of the second node after next node
+		thisNode.next->signalData[2] = (temp >> 4);	// signal state of the second node after next node
 
 	} else if (thisNode.prev != NULL && communicatingNodeID == thisNode.prev->nodeID)
 	{
@@ -220,11 +221,11 @@ void extractPayloadData(Payload *p, uint8_t communicatingNodeID)
 		thisNode.prev->signalReset = __GET_SIGNAL_RESET_BIT_STATE(temp);
 
 		temp = p->receivePayload[C_N1_NODE_INDEX];
-		thisNode.signalData[0] = (temp >> 4);	// signal state of the previous node
+		thisNode.prev->signalData[0] = (temp >> 4);	// signal state of the previous node, i.e, the node that transmitted the data
 
 		temp = p->receivePayload[P2_P1_NODE_INDEX];
-		thisNode.signalData[1] = (temp & 0x0F);	// signal state of the first node after the previous node
-		thisNode.signalData[2] = (temp >> 4);	// signal state of the second node after previous node
+		thisNode.prev->signalData[1] = (temp & 0x0F);	// signal state of the first node after the previous node
+		thisNode.prev->signalData[2] = (temp >> 4);	// signal state of the second node after previous node
 	}
 }
 
