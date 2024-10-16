@@ -123,33 +123,6 @@ int main(void)
 	/* USER CODE BEGIN 2 */
 	signalStateInit();
 
-	// initialize the nrf module for lower signal node and prev signal node structure
-	if (thisNode.prev != NULL)
-	{
-		radioInit(&nrf1, PREV_NODE_ADDRESS, NRF24_LOWER_NODE_RF_CHANNEL, nrf24OperationMode);
-		prevSignalNode.nrf = &nrf1;
-		prevSignalNode.pl = &prevNodePayload;
-		prevSignalNode.next = &nextSignalNode;
-		prevSignalNode.nodeID = thisNode.prev->nodeID;
-	}
-
-	// initialize the nrf module for lower signal node and next signal node structure
-	if (thisNode.next != NULL)
-	{
-		radioInit(&nrf2, NEXT_NODE_ADDRESS, NRF24_HIGHER_NODE_RF_CHANNEL, nrf24OperationMode);
-
-		nextSignalNode.nrf = &nrf2;
-		nextSignalNode.pl = &nextNodePayload;
-		nextSignalNode.next = &prevSignalNode;
-		nextSignalNode.nodeID = thisNode.next->nodeID;
-	}
-
-	radioInit(&nrf3, LOCOMOTIVE_NODE_ADDRESS, NRF24_LOCOMOTIVE_NODE_RF_CHANNEL, nRF24_MODE_RX);
-
-	locomotiveNode.nrf = &nrf3;
-	nextSignalNode.pl = &locomotiveNodePayload;
-	nextSignalNode.next = NULL;
-
 	// if node type is master then set nrf module into PTX mode and start communication with previous node first
 	// else set nrf module into PRX and start communication with the next node
 	if (nodeType == MASTER)
@@ -162,13 +135,67 @@ int main(void)
 		currentComNode = &nextSignalNode;
 	}
 
+	// initialize the nrf module for lower signal node and prev signal node structure (if present)
+	if (thisNode.prev != NULL)
+	{
+		prevSignalNode.nrf = &nrf1;
+		prevSignalNode.pl = &prevNodePayload;
+		prevSignalNode.next = &nextSignalNode;
+		prevSignalNode.nodeID = thisNode.prev->nodeID;
+		radioInit(prevSignalNode.nrf, PREV_NODE_ADDRESS, NRF24_LOWER_NODE_RF_CHANNEL, nrf24OperationMode);
+	}
+
+	// initialize the nrf module for lower signal node and next signal node structure
+	if (thisNode.next != NULL)
+	{
+		nextSignalNode.nrf = &nrf2;
+		nextSignalNode.pl = &nextNodePayload;
+		nextSignalNode.next = &prevSignalNode;
+		nextSignalNode.nodeID = thisNode.next->nodeID;
+
+		radioInit(nextSignalNode.nrf, NEXT_NODE_ADDRESS, NRF24_HIGHER_NODE_RF_CHANNEL, nrf24OperationMode);
+	}
+
+	locomotiveNode.nrf = &nrf3;
+	locomotiveNode.pl = &locomotiveNodePayload;
+	locomotiveNode.next = NULL;
+	radioInit(locomotiveNode.nrf, LOCOMOTIVE_NODE_ADDRESS, NRF24_LOCOMOTIVE_NODE_RF_CHANNEL, nRF24_MODE_RX);
+
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
 	/* USER CODE BEGIN WHILE */
-	updateTxPayload(&prevNodePayload, thisNode.prev->nodeID);
-	updateTxPayload(&nextNodePayload, thisNode.next->nodeID);
-	// update locomotive node payload
+
+	if (thisNode.prev != NULL)
+	{
+		updateTxPayload(prevSignalNode.pl, thisNode.prev->nodeID);
+
+		if (nrf24OperationMode == nRF24_MODE_RX)
+		{
+			// update ack payload
+			nRF24_WriteAckPayload(prevSignalNode.nrf, nRF24_PIPE0, (char *)prevSignalNode.pl->transmitPayload, PAYLOAD_LENGTH);
+			// start receiving when configured as PRX
+			nRF24_CE_H(prevSignalNode.nrf);
+		}
+	}
+
+
+	if (thisNode.next != NULL)
+	{
+		updateTxPayload(nextSignalNode.pl, thisNode.next->nodeID);
+
+		if (nrf24OperationMode == nRF24_MODE_RX)
+		{
+			// update ack payload
+			nRF24_WriteAckPayload(nextSignalNode.nrf, nRF24_PIPE0, (char *)nextSignalNode.pl->transmitPayload, PAYLOAD_LENGTH);
+			// start receiving when configured as PRX
+			nRF24_CE_H(nextSignalNode.nrf);
+		}
+	}
+
+	// write ack payload
+	nRF24_CE_H(locomotiveNode.nrf);	// start receiving
+
 
 	while (1)
 	{
@@ -417,16 +444,13 @@ static void inline radioInit(NRF24 *nrf24, const uint8_t *address, uint8_t RFCha
 		nRF24_SetDynamicPayloadLength(nrf24, nRF24_DPL_ON);
 		nRF24_SetPayloadWithAck(nrf24, 1);
 		nRF24_SetPowerMode(nrf24, nRF24_PWR_UP);
-
-		if (operationMode == nRF24_MODE_RX)
-			nRF24_CE_H(nrf24);
 	}
 }
 
 static void inline masterNode(void)
 {
 	static unsigned long currentMillis, prevTxMillis;
-	uint8_t payloadLength = PAYLOAD_LENGTH;
+	uint8_t payloadLength = PAYLOAD_LENGTH, status = 0;
 	bool payload1Valid = false, payload2Valid = false;
 
 	currentMillis = HAL_GetTick();
@@ -448,7 +472,11 @@ static void inline masterNode(void)
 	// payload received from previous node
 	if (nrf1IRQTriggered && currentComNode == &prevSignalNode)
 	{
-		if (nRF24_ReadPayloadDpl(currentComNode->nrf, prevNodePayload.receivePayload, &payloadLength) == nRF24_RX_PIPE0)
+		status = nRF24_GetStatus(currentComNode->nrf);
+		nRF24_ClearIRQFlags(currentComNode->nrf);
+		nRF24_FlushTX(currentComNode->nrf);
+		// nRF24_FLAG_TX_DS & nRF24_FLAG_TX_DS bits are set for a successful transaction
+		if ((status & (nRF24_FLAG_TX_DS | nRF24_FLAG_RX_DR)) && nRF24_ReadPayloadDpl(currentComNode->nrf, prevNodePayload.receivePayload, &payloadLength) == nRF24_RX_PIPE0)
 		{
 			payload1Valid = isPayLoadValid(&prevNodePayload, currentComNode->nodeID);
 			if (payload1Valid)
@@ -470,7 +498,12 @@ static void inline masterNode(void)
 	if (nrf2IRQTriggered && currentComNode == &nextSignalNode)
 	{
 		payloadLength = PAYLOAD_LENGTH;
-		if (nRF24_ReadPayloadDpl(currentComNode->nrf, nextNodePayload.receivePayload, &payloadLength) == nRF24_RX_PIPE0)
+		status = nRF24_GetStatus(currentComNode->nrf);
+		// Clear pending IRQ flags
+		nRF24_ClearIRQFlags(currentComNode->nrf);
+		nRF24_FlushTX(currentComNode->nrf);
+		// nRF24_FLAG_TX_DS & nRF24_FLAG_TX_DS bits are set for a successful transaction
+		if ((status & (nRF24_FLAG_TX_DS | nRF24_FLAG_TX_DS)) && nRF24_ReadPayloadDpl(currentComNode->nrf, nextNodePayload.receivePayload, &payloadLength) == nRF24_RX_PIPE0)
 		{
 			payload2Valid = isPayLoadValid(&nextNodePayload, currentComNode->nodeID);
 			if (payload2Valid)
@@ -490,22 +523,25 @@ static void inline masterNode(void)
 	if (nrf3IRQTriggered)
 	{
 		payloadLength = PAYLOAD_LENGTH;
-		if (nRF24_ReadPayloadDpl(locomotiveNode.nrf, locomotiveNodePayload.receivePayload, &payloadLength)
+		status = nRF24_GetStatus(currentComNode->nrf);
+		// Clear pending IRQ flags
+		nRF24_ClearIRQFlags(currentComNode->nrf);
+		if ((status & nRF24_FLAG_RX_DR) && nRF24_ReadPayloadDpl(locomotiveNode.nrf, locomotiveNodePayload.receivePayload, &payloadLength)
 				== nRF24_RX_PIPE0)
 		{
-			// change this verification method
-			if (isPayLoadValid(&locomotiveNodePayload, currentComNode->nodeID))
-			{
-				extractPayloadData(&locomotiveNodePayload, currentComNode->nodeID);
-			}
+			// process locomotive payload
 		}
 		nrf3IRQTriggered = false;
 	}
 
 	if (payload1Valid || payload2Valid)
 	{
-		updateTxPayload(&prevNodePayload, thisNode.prev->nodeID);
-		updateTxPayload(&nextNodePayload, thisNode.next->nodeID);
+		if (thisNode.prev != NULL)
+			updateTxPayload(&prevNodePayload, thisNode.prev->nodeID);
+
+		if (thisNode.next != NULL)
+			updateTxPayload(&nextNodePayload, thisNode.next->nodeID);
+
 		// update locomotive node payload
 
 		if (thisNode.nodeReady != true)
@@ -536,7 +572,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 	// port code from previous iteration
 
-	// deassert nrfs ce pin
+	// Deassert the CE pin (Standby-II --> Standby-I)
 	// set IRQ trigger flags
 	if (GPIO_Pin == NRF_IRQ1_Pin)
 	{
