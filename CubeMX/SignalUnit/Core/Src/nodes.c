@@ -208,6 +208,7 @@ void extractPayloadData(Payload *p, uint8_t communicatingNodeID)
 		temp = p->receivePayload[C_N1_NODE_INDEX];
 		thisNode.next->signalData[1] = (temp & 0x0F);	// signal state of the first node after the next node
 		thisNode.next->signalData[0] = (temp >> 4);	// signal state of the next node, i.e, the node that transmitted the data
+		thisNode.next->signal = (Signal)thisNode.next->signalData[0];
 
 		temp = p->receivePayload[N2_N3_NODE_INDEX];
 		thisNode.next->signalData[2] = (temp >> 4);	// signal state of the second node after next node
@@ -222,6 +223,7 @@ void extractPayloadData(Payload *p, uint8_t communicatingNodeID)
 
 		temp = p->receivePayload[C_N1_NODE_INDEX];
 		thisNode.prev->signalData[0] = (temp >> 4);	// signal state of the previous node, i.e, the node that transmitted the data
+		thisNode.prev->signal = (Signal)thisNode.prev->signalData[0];
 
 		temp = p->receivePayload[P2_P1_NODE_INDEX];
 		thisNode.prev->signalData[1] = (temp & 0x0F);	// signal state of the first node after the previous node
@@ -316,7 +318,7 @@ void updateSignalState(void)
 		switch (temp.state)
 		{
 		case RED:
-			if (thisNode.axleCount == thisNode.next->axleCount)
+			if (thisNode.next != NULL && thisNode.axleCount == thisNode.next->axleCount)
 			{
 				// if train is moving towards higher node and the axle counter from the next node is equal to this node
 				// than the train has passed this signal and the signal after
@@ -328,7 +330,7 @@ void updateSignalState(void)
 			break;
 
 		case YELLOW:
-			if (thisNode.next->signal == YELLOW)
+			if (thisNode.next != NULL && thisNode.next->signal == YELLOW)
 			{
 				// if next node is yellow than this node should now be double yellow
 				if (temp.next != NULL)
@@ -338,7 +340,7 @@ void updateSignalState(void)
 			break;
 
 		case DOUBLE_YELLOW:
-			if (thisNode.next->signal == DOUBLE_YELLOW)
+			if (thisNode.next != NULL && thisNode.next->signal == DOUBLE_YELLOW)
 			{
 				// if the next node is double yellow then this node should now be green
 				if (temp.next != NULL)
@@ -362,7 +364,7 @@ void updateSignalState(void)
 		switch (temp.state)
 		{
 		case RED:
-			if (thisNode.axleCount == thisNode.prev->axleCount)
+			if (thisNode.prev != NULL && thisNode.axleCount == thisNode.prev->axleCount)
 			{
 				// if train is moving towards lower node and the axle counter from the previous node is equal to this node
 				// than the train has passed this signal and the signal before
@@ -374,7 +376,7 @@ void updateSignalState(void)
 			break;
 
 		case YELLOW:
-			if (thisNode.prev->signal == YELLOW)
+			if (thisNode.prev != NULL && thisNode.prev->signal == YELLOW)
 			{
 				if (temp.next != NULL)
 					currentSignalState = temp.next;
@@ -383,7 +385,7 @@ void updateSignalState(void)
 			break;
 
 		case DOUBLE_YELLOW:
-			if (thisNode.prev->signal == DOUBLE_YELLOW)
+			if (thisNode.prev != NULL && thisNode.prev->signal == DOUBLE_YELLOW)
 			{
 				if (temp.next != NULL)
 					currentSignalState = temp.next;

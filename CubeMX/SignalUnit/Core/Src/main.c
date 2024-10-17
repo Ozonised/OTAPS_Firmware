@@ -491,8 +491,8 @@ static void inline masterNode(void)
 	{
 		status = nRF24_GetStatus(currentComNode->nrf);
 
-		// nRF24_FLAG_TX_DS & nRF24_FLAG_RX_DR bits are set for a successful transaction
-		if ((status & (nRF24_FLAG_RX_DR | nRF24_FLAG_TX_DS ))
+		// nRF24_FLAG_RX_DR bit is when the ack payload is received from PRX
+		if ((status & nRF24_FLAG_RX_DR)
 				&& nRF24_ReadPayloadDpl(currentComNode->nrf, prevNodePayload.receivePayload, &payloadLength)
 						== nRF24_RX_PIPE0)
 		{
@@ -523,8 +523,8 @@ static void inline masterNode(void)
 		payloadLength = PAYLOAD_LENGTH;
 		status = nRF24_GetStatus(currentComNode->nrf);
 
-		// nRF24_FLAG_TX_DS & nRF24_FLAG_RX_DR bits are set for a successful transaction
-		if ((status & (nRF24_FLAG_RX_DR | nRF24_FLAG_TX_DS ))
+		// nRF24_FLAG_RX_DR bit is when the ack payload is received from PRX
+		if ((status & nRF24_FLAG_RX_DR)
 				&& nRF24_ReadPayloadDpl(currentComNode->nrf, nextNodePayload.receivePayload, &payloadLength)
 						== nRF24_RX_PIPE0)
 		{
@@ -553,8 +553,7 @@ static void inline masterNode(void)
 	{
 		payloadLength = PAYLOAD_LENGTH;
 		status = nRF24_GetStatus(currentComNode->nrf);
-		// Clear pending IRQ flags
-//		nRF24_ClearIRQFlags(currentComNode->nrf);
+
 		if ((status & nRF24_FLAG_RX_DR )
 				&& nRF24_ReadPayloadDpl(locomotiveNode.nrf, locomotiveNodePayload.receivePayload, &payloadLength)
 						== nRF24_RX_PIPE0)
@@ -604,8 +603,6 @@ static void inline slaveNode(void)
 	{
 		status = nRF24_GetStatus(currentComNode->nrf);
 
-//		nRF24_FlushTX(currentComNode->nrf);
-		// nRF24_FLAG_RX_DR bits are set for a successful reception
 		if ((status & nRF24_FLAG_RX_DR )
 				&& nRF24_ReadPayloadDpl(currentComNode->nrf, prevNodePayload.receivePayload, &payloadLength)
 						== nRF24_RX_PIPE0)
@@ -632,8 +629,6 @@ static void inline slaveNode(void)
 	{
 		payloadLength = PAYLOAD_LENGTH;
 		status = nRF24_GetStatus(currentComNode->nrf);
-//		// Clear pending IRQ flags
-//		nRF24_ClearIRQFlags(currentComNode->nrf);
 
 		// nRF24_FLAG_RX_DS bits are set for a successful reception
 		if ((status & nRF24_FLAG_RX_DR )
@@ -661,8 +656,7 @@ static void inline slaveNode(void)
 	{
 		payloadLength = PAYLOAD_LENGTH;
 		status = nRF24_GetStatus(currentComNode->nrf);
-		// Clear pending IRQ flags
-//		nRF24_ClearIRQFlags(currentComNode->nrf);
+
 		if ((status & nRF24_FLAG_RX_DR )
 				&& nRF24_ReadPayloadDpl(locomotiveNode.nrf, locomotiveNodePayload.receivePayload, &payloadLength)
 						== nRF24_RX_PIPE0)
