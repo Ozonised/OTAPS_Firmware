@@ -281,15 +281,16 @@ void updateTxPayload(Payload *p, uint8_t communicatingNodeID)
 		// 5th byte
 		p->transmitPayload[P2_P1_NODE_INDEX] = (thisNode.prev->signalData[1] << 4) | thisNode.prev->signalData[0]; // signal data of the second and first node before the current node
 	}
+	thisNode.signal = currentSignalState->state;
 	// 6th byte
 	p->transmitPayload[C_N1_NODE_INDEX] = ((uint8_t) thisNode.signal) << 4;	// state of current signal
 
 	if (thisNode.next != NULL)
 	{
 		// 6th byte
-		p->transmitPayload[C_N1_NODE_INDEX] |= (0x0F & thisNode.signalData[0]); // signal data of the first node after the current node
+		p->transmitPayload[C_N1_NODE_INDEX] |= (0x0F & thisNode.next->signalData[0]); // signal data of the first node after the current node
 		// 7th byte
-		p->transmitPayload[N2_N3_NODE_INDEX] = (thisNode.signalData[1] << 4) | thisNode.signalData[2]; // signal data of the second and third node after the current node
+		p->transmitPayload[N2_N3_NODE_INDEX] = (thisNode.next->signalData[1] << 4) | thisNode.next->signalData[2]; // signal data of the second and third node after the current node
 	}
 
 	//8th byte
