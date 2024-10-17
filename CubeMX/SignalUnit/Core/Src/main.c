@@ -1,21 +1,5 @@
 /* USER CODE BEGIN Header */
-/**
- ******************************************************************************
- * @file           : main.c
- * @brief          : Main program body
- ******************************************************************************
- * @attention
- *
- * Copyright (c) 2024 STMicroelectronics.
- * All rights reserved.
- *
- * This software is licensed under terms that can be found in the LICENSE file
- *
- * in the root directory of this software component.
- * If no LICENSE file comes with this software, it is provided AS-IS.
- *
- ******************************************************************************
- */
+
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
@@ -70,6 +54,7 @@ static ComNode prevSignalNode = { 0 }, nextSignalNode = { 0 }, locomotiveNode = 
 static ComNode *currentComNode = NULL;
 
 static volatile bool nrf1IRQTriggered = false, nrf2IRQTriggered = false, nrf3IRQTriggered = false;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -128,11 +113,20 @@ int main(void)
 	if (nodeType == MASTER)
 	{
 		nrf24OperationMode = nRF24_MODE_TX;
-		currentComNode = &prevSignalNode;
+
+		if (thisNode.prev != NULL)
+			currentComNode = &prevSignalNode;
+		else
+			currentComNode = &nextSignalNode;
+
 	} else
 	{
 		nrf24OperationMode = nRF24_MODE_RX;
-		currentComNode = &nextSignalNode;
+
+		if (thisNode.next != NULL)
+			currentComNode = &nextSignalNode;
+		else
+			currentComNode = &prevSignalNode;
 	}
 
 	// initialize the nrf module for lower signal node and prev signal node structure (if present)
@@ -140,7 +134,10 @@ int main(void)
 	{
 		prevSignalNode.nrf = &nrf1;
 		prevSignalNode.pl = &prevNodePayload;
-		prevSignalNode.next = &nextSignalNode;
+
+		if (thisNode.next != NULL)
+			prevSignalNode.next = &nextSignalNode;
+
 		prevSignalNode.nodeID = thisNode.prev->nodeID;
 		radioInit(prevSignalNode.nrf, PREV_NODE_ADDRESS, NRF24_LOWER_NODE_RF_CHANNEL, nrf24OperationMode);
 	}
@@ -150,7 +147,10 @@ int main(void)
 	{
 		nextSignalNode.nrf = &nrf2;
 		nextSignalNode.pl = &nextNodePayload;
-		nextSignalNode.next = &prevSignalNode;
+
+		if (thisNode.prev != NULL)
+			nextSignalNode.next = &prevSignalNode;
+
 		nextSignalNode.nodeID = thisNode.next->nodeID;
 
 		radioInit(nextSignalNode.nrf, NEXT_NODE_ADDRESS, NRF24_HIGHER_NODE_RF_CHANNEL, nrf24OperationMode);
@@ -173,12 +173,12 @@ int main(void)
 		if (nrf24OperationMode == nRF24_MODE_RX)
 		{
 			// update ack payload
-			nRF24_WriteAckPayload(prevSignalNode.nrf, nRF24_PIPE0, (char *)prevSignalNode.pl->transmitPayload, PAYLOAD_LENGTH);
+			nRF24_WriteAckPayload(prevSignalNode.nrf, nRF24_PIPE0, (char*) prevSignalNode.pl->transmitPayload,
+			PAYLOAD_LENGTH);
 			// start receiving when configured as PRX
 			nRF24_CE_H(prevSignalNode.nrf);
 		}
 	}
-
 
 	if (thisNode.next != NULL)
 	{
@@ -187,7 +187,8 @@ int main(void)
 		if (nrf24OperationMode == nRF24_MODE_RX)
 		{
 			// update ack payload
-			nRF24_WriteAckPayload(nextSignalNode.nrf, nRF24_PIPE0, (char *)nextSignalNode.pl->transmitPayload, PAYLOAD_LENGTH);
+			nRF24_WriteAckPayload(nextSignalNode.nrf, nRF24_PIPE0, (char*) nextSignalNode.pl->transmitPayload,
+			PAYLOAD_LENGTH);
 			// start receiving when configured as PRX
 			nRF24_CE_H(nextSignalNode.nrf);
 		}
@@ -195,7 +196,6 @@ int main(void)
 
 	// write ack payload
 	nRF24_CE_H(locomotiveNode.nrf);	// start receiving
-
 
 	while (1)
 	{
@@ -209,10 +209,11 @@ int main(void)
 		switch (nodeType)
 		{
 		case MASTER:
-
+			masterNode();
 			break;
 
 		case SLAVE:
+			slaveNode();
 			break;
 
 		default:
@@ -347,9 +348,13 @@ static void MX_GPIO_Init(void)
 	/* USER CODE END MX_GPIO_Init_1 */
 
 	/* GPIO Ports Clock Enable */
+	__HAL_RCC_GPIOC_CLK_ENABLE();
 	__HAL_RCC_GPIOD_CLK_ENABLE();
 	__HAL_RCC_GPIOA_CLK_ENABLE();
 	__HAL_RCC_GPIOB_CLK_ENABLE();
+
+	/*Configure GPIO pin Output Level */
+	HAL_GPIO_WritePin(LED_BUILTIN_GPIO_Port, LED_BUILTIN_Pin, GPIO_PIN_SET);
 
 	/*Configure GPIO pin Output Level */
 	HAL_GPIO_WritePin(GPIOA, NRF_CE3_Pin | NRF_CE2_Pin | LED_RED_Pin, GPIO_PIN_RESET);
@@ -363,6 +368,13 @@ static void MX_GPIO_Init(void)
 	/*Configure GPIO pin Output Level */
 	HAL_GPIO_WritePin(NRF_CSN1_GPIO_Port, NRF_CSN1_Pin, GPIO_PIN_SET);
 
+	/*Configure GPIO pin : LED_BUILTIN_Pin */
+	GPIO_InitStruct.Pin = LED_BUILTIN_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+	HAL_GPIO_Init(LED_BUILTIN_GPIO_Port, &GPIO_InitStruct);
+
 	/*Configure GPIO pins : NRF_CE3_Pin NRF_CSN3_Pin NRF_CE2_Pin NRF_CSN2_Pin
 	 LED_RED_Pin */
 	GPIO_InitStruct.Pin = NRF_CE3_Pin | NRF_CSN3_Pin | NRF_CE2_Pin | NRF_CSN2_Pin | LED_RED_Pin;
@@ -370,7 +382,6 @@ static void MX_GPIO_Init(void)
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
 	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
 	/*Configure GPIO pin : NRF_IRQ2_Pin */
 	GPIO_InitStruct.Pin = NRF_IRQ2_Pin;
 	GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
@@ -460,6 +471,12 @@ static void inline masterNode(void)
 		// Deassert the CE pin (in case if it still high)
 		nRF24_CE_L(currentComNode->nrf);
 
+		if (nRF24_GetStatus_TXFIFO(currentComNode->nrf) == nRF24_STATUS_TXFIFO_FULL)
+			nRF24_FlushTX(currentComNode->nrf);
+
+		if (nRF24_GetStatus_RXFIFO(currentComNode->nrf) == nRF24_STATUS_RXFIFO_FULL)
+			nRF24_FlushRX(currentComNode->nrf);
+
 		// Transfer a data from the specified buffer to the TX FIFO
 		nRF24_WritePayload(currentComNode->nrf, currentComNode->pl->transmitPayload, PAYLOAD_LENGTH);
 
@@ -473,17 +490,23 @@ static void inline masterNode(void)
 	if (nrf1IRQTriggered && currentComNode == &prevSignalNode)
 	{
 		status = nRF24_GetStatus(currentComNode->nrf);
-		nRF24_ClearIRQFlags(currentComNode->nrf);
-		nRF24_FlushTX(currentComNode->nrf);
-		// nRF24_FLAG_TX_DS & nRF24_FLAG_TX_DS bits are set for a successful transaction
-		if ((status & (nRF24_FLAG_TX_DS | nRF24_FLAG_RX_DR)) && nRF24_ReadPayloadDpl(currentComNode->nrf, prevNodePayload.receivePayload, &payloadLength) == nRF24_RX_PIPE0)
+
+		// nRF24_FLAG_TX_DS & nRF24_FLAG_RX_DR bits are set for a successful transaction
+		if ((status & (nRF24_FLAG_RX_DR | nRF24_FLAG_TX_DS ))
+				&& nRF24_ReadPayloadDpl(currentComNode->nrf, prevNodePayload.receivePayload, &payloadLength)
+						== nRF24_RX_PIPE0)
 		{
 			payload1Valid = isPayLoadValid(&prevNodePayload, currentComNode->nodeID);
 			if (payload1Valid)
 			{
 				extractPayloadData(&prevNodePayload, currentComNode->nodeID);
+				HAL_GPIO_WritePin(LED_BUILTIN_GPIO_Port, LED_BUILTIN_Pin, GPIO_PIN_SET);
 			}
 		}
+
+		// Deassert the CE pin (Standby-II --> Standby-I)
+		nRF24_CE_L(currentComNode->nrf);
+		nRF24_ClearIRQFlags(currentComNode->nrf);
 
 		// switch to next node
 		if (currentComNode->next != NULL)
@@ -499,23 +522,29 @@ static void inline masterNode(void)
 	{
 		payloadLength = PAYLOAD_LENGTH;
 		status = nRF24_GetStatus(currentComNode->nrf);
-		// Clear pending IRQ flags
-		nRF24_ClearIRQFlags(currentComNode->nrf);
-		nRF24_FlushTX(currentComNode->nrf);
-		// nRF24_FLAG_TX_DS & nRF24_FLAG_TX_DS bits are set for a successful transaction
-		if ((status & (nRF24_FLAG_TX_DS | nRF24_FLAG_TX_DS)) && nRF24_ReadPayloadDpl(currentComNode->nrf, nextNodePayload.receivePayload, &payloadLength) == nRF24_RX_PIPE0)
+
+		// nRF24_FLAG_TX_DS & nRF24_FLAG_RX_DR bits are set for a successful transaction
+		if ((status & (nRF24_FLAG_RX_DR | nRF24_FLAG_TX_DS ))
+				&& nRF24_ReadPayloadDpl(currentComNode->nrf, nextNodePayload.receivePayload, &payloadLength)
+						== nRF24_RX_PIPE0)
 		{
 			payload2Valid = isPayLoadValid(&nextNodePayload, currentComNode->nodeID);
 			if (payload2Valid)
 			{
 				extractPayloadData(&nextNodePayload, currentComNode->nodeID);
+				HAL_GPIO_WritePin(LED_BUILTIN_GPIO_Port, LED_BUILTIN_Pin, GPIO_PIN_RESET);
 			}
 		}
+
+		// Deassert the CE pin (Standby-II --> Standby-I)
+		nRF24_CE_L(currentComNode->nrf);
+		nRF24_ClearIRQFlags(currentComNode->nrf);
 
 		if (currentComNode->next != NULL)
 		{
 			currentComNode = currentComNode->next;
 		}
+
 		nrf2IRQTriggered = false;
 	}
 
@@ -525,9 +554,10 @@ static void inline masterNode(void)
 		payloadLength = PAYLOAD_LENGTH;
 		status = nRF24_GetStatus(currentComNode->nrf);
 		// Clear pending IRQ flags
-		nRF24_ClearIRQFlags(currentComNode->nrf);
-		if ((status & nRF24_FLAG_RX_DR) && nRF24_ReadPayloadDpl(locomotiveNode.nrf, locomotiveNodePayload.receivePayload, &payloadLength)
-				== nRF24_RX_PIPE0)
+//		nRF24_ClearIRQFlags(currentComNode->nrf);
+		if ((status & nRF24_FLAG_RX_DR )
+				&& nRF24_ReadPayloadDpl(locomotiveNode.nrf, locomotiveNodePayload.receivePayload, &payloadLength)
+						== nRF24_RX_PIPE0)
 		{
 			// process locomotive payload
 		}
@@ -536,6 +566,7 @@ static void inline masterNode(void)
 
 	if (payload1Valid || payload2Valid)
 	{
+
 		if (thisNode.prev != NULL)
 			updateTxPayload(&prevNodePayload, thisNode.prev->nodeID);
 
@@ -556,38 +587,152 @@ static void inline masterNode(void)
 			updateSignalState();
 			setSignalLeds();
 		}
+
+		payload1Valid = false;
+		payload2Valid = false;
 	}
 
 }
 
 static void inline slaveNode(void)
 {
-	uint8_t payloadLength = PAYLOAD_LENGTH;
+	uint8_t payloadLength = PAYLOAD_LENGTH, status = 0;
 	bool payload1Valid = false, payload2Valid = false;
+
+	// payload received from previous node
+	if (nrf1IRQTriggered && currentComNode == &prevSignalNode)
+	{
+		status = nRF24_GetStatus(currentComNode->nrf);
+
+//		nRF24_FlushTX(currentComNode->nrf);
+		// nRF24_FLAG_RX_DR bits are set for a successful reception
+		if ((status & nRF24_FLAG_RX_DR )
+				&& nRF24_ReadPayloadDpl(currentComNode->nrf, prevNodePayload.receivePayload, &payloadLength)
+						== nRF24_RX_PIPE0)
+		{
+			payload1Valid = isPayLoadValid(&prevNodePayload, currentComNode->nodeID);
+			if (payload1Valid)
+			{
+				extractPayloadData(&prevNodePayload, currentComNode->nodeID);
+				HAL_GPIO_WritePin(LED_BUILTIN_GPIO_Port, LED_BUILTIN_Pin, GPIO_PIN_SET);
+			}
+		}
+
+		// switch to next node
+		if (currentComNode->next != NULL)
+		{
+			currentComNode = currentComNode->next;
+		}
+		nRF24_ClearIRQFlags(currentComNode->nrf);
+		nrf1IRQTriggered = false;
+	}
+
+	// payload received from next node
+	if (nrf2IRQTriggered && currentComNode == &nextSignalNode)
+	{
+		payloadLength = PAYLOAD_LENGTH;
+		status = nRF24_GetStatus(currentComNode->nrf);
+//		// Clear pending IRQ flags
+//		nRF24_ClearIRQFlags(currentComNode->nrf);
+
+		// nRF24_FLAG_RX_DS bits are set for a successful reception
+		if ((status & nRF24_FLAG_RX_DR )
+				&& nRF24_ReadPayloadDpl(currentComNode->nrf, nextNodePayload.receivePayload, &payloadLength)
+						== nRF24_RX_PIPE0)
+		{
+			payload2Valid = isPayLoadValid(&nextNodePayload, currentComNode->nodeID);
+			if (payload2Valid)
+			{
+				extractPayloadData(&nextNodePayload, currentComNode->nodeID);
+				HAL_GPIO_WritePin(LED_BUILTIN_GPIO_Port, LED_BUILTIN_Pin, GPIO_PIN_RESET);
+			}
+		}
+
+		if (currentComNode->next != NULL)
+		{
+			currentComNode = currentComNode->next;
+		}
+		nRF24_ClearIRQFlags(currentComNode->nrf);
+		nrf2IRQTriggered = false;
+	}
+
+	// payload received from locomotive node
+	if (nrf3IRQTriggered)
+	{
+		payloadLength = PAYLOAD_LENGTH;
+		status = nRF24_GetStatus(currentComNode->nrf);
+		// Clear pending IRQ flags
+//		nRF24_ClearIRQFlags(currentComNode->nrf);
+		if ((status & nRF24_FLAG_RX_DR )
+				&& nRF24_ReadPayloadDpl(locomotiveNode.nrf, locomotiveNodePayload.receivePayload, &payloadLength)
+						== nRF24_RX_PIPE0)
+		{
+			// process locomotive payload
+		}
+		nrf3IRQTriggered = false;
+	}
+
+	if (payload1Valid || payload2Valid)
+	{
+		if (nRF24_GetStatus_TXFIFO(currentComNode->nrf) == nRF24_STATUS_TXFIFO_FULL)
+			nRF24_FlushTX(currentComNode->nrf);
+
+		if (nRF24_GetStatus_RXFIFO(currentComNode->nrf) == nRF24_STATUS_RXFIFO_FULL)
+			nRF24_FlushRX(currentComNode->nrf);
+
+		if (thisNode.prev != NULL)
+		{
+			updateTxPayload(&prevNodePayload, thisNode.prev->nodeID);
+			// update ack payload
+			nRF24_WriteAckPayload(prevSignalNode.nrf, nRF24_PIPE0, (char*) prevSignalNode.pl->transmitPayload,
+			PAYLOAD_LENGTH);
+		}
+
+		if (thisNode.next != NULL)
+		{
+			updateTxPayload(&nextNodePayload, thisNode.next->nodeID);
+			// update ack payload
+			nRF24_WriteAckPayload(nextSignalNode.nrf, nRF24_PIPE0, (char*) nextSignalNode.pl->transmitPayload,
+			PAYLOAD_LENGTH);
+
+		}
+
+		// update locomotive node payload
+
+		if (thisNode.nodeReady != true)
+		{
+			thisNode.nodeReady = isNodeReady();
+
+			// all led ON
+			HAL_GPIO_WritePin(LED_RED_GPIO_Port, LED_RED_Pin, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(LED_YELLOW1_GPIO_Port, LED_GREEN_Pin | LED_YELLOW1_Pin | LED_YELLOW2_Pin, GPIO_PIN_SET);
+		} else
+		{
+			updateSignalState();
+			setSignalLeds();
+		}
+		payload1Valid = false;
+		payload2Valid = false;
+	}
 
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
 
-	// port code from previous iteration
-
-	// Deassert the CE pin (Standby-II --> Standby-I)
 	// set IRQ trigger flags
 	if (GPIO_Pin == NRF_IRQ1_Pin)
 	{
 		nrf1IRQTriggered = true;
-		nRF24_CE_L(&nrf1);
+
 	}
 	if (GPIO_Pin == NRF_IRQ2_Pin)
 	{
 		nrf2IRQTriggered = true;
-		nRF24_CE_L(&nrf2);
 	}
 	if (GPIO_Pin == NRF_IRQ3_Pin)
 	{
 		nrf3IRQTriggered = true;
-		nRF24_CE_L(&nrf3);
 	}
 
 	if (GPIO_Pin == PROX_SNSR_Pin)
