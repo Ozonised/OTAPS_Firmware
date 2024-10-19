@@ -2,8 +2,8 @@
 
 const uint8_t TOTAL_NO_OF_NODES = 5;
 const uint8_t LOCOMOTIVE_NODE_ID = 0x24;
-const uint8_t NODE_IDS[] = {1, 2, 3, 4, 5};
-const uint8_t NODE_ADDRESS[5] = {};
+const uint8_t NODE_IDS[] = { 1, 2, 3, 4, 5 };
+const uint8_t NODE_ADDRESS[][5] = { "NRF14", "NRF24", "NRF34", "NRF44", "NRF54" };
 
 // NRF24 module config
 const uint8_t NRF24_TX_PWR = nRF24_TXPWR_18dBm;	// one of nRF24_TXPWR_xx values

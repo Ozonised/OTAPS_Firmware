@@ -6,7 +6,7 @@
 #define NO_OF_NODES_TO_MONITOR 3
 
 extern const uint8_t TOTAL_NO_OF_NODES;
-extern const uint8_t NODE_IDS[], NODE_ADDRESS[];
+extern const uint8_t NODE_IDS[], NODE_ADDRESS[][5];
 extern const uint8_t LOCOMOTIVE_NODE_ID;
 
 extern const uint8_t NRF24_TX_PWR, NRF24_DATA_RATE, NRF24_AUTO_RETRY_DELAY, NRF24_AUTO_RETRY_COUNT, RF_CHANNEL;
