@@ -15,7 +15,7 @@ bool isPayLoadValid(Locomotive *loco, Payload *p)
 {
 	// validate if payload received from current node
 	if (p->receivePayload[SOURCE_ID_INDEX] != loco->id
-			&& p->receivePayload[DESTINATION_ID_INDEX] != loco->comNodeNo)
+			&& p->receivePayload[DESTINATION_ID_INDEX] != loco->comNodeID)
 		return false;
 
 	unsigned short sum = 0;
@@ -70,6 +70,7 @@ void extractPayloadData(Locomotive *loco, Payload *p)
 			loco->signalData[2] = (Signal)(temp >> 4);	// signal state of the second node after previous node
 
 			temp = p->receivePayload[STATUS_P3_NODE_INDEX];
+
 			loco->signalData[3] = (Signal)(temp & 0x0F);// signal state of the third node after previous node
 			break;
 

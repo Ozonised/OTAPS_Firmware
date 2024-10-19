@@ -52,7 +52,11 @@ typedef struct
     Signal signalData[NO_OF_NODES_TO_MONITOR + 1];
     uint8_t id;
     uint8_t comNodeNo;
+    uint8_t comNodeID;
     bool isComNodeReady;
 } Locomotive;
 
+bool isPayLoadValid(Locomotive *loco, Payload *p);
+void extractPayloadData(Locomotive *loco, Payload *p);
+void updateLocomotiveState(Locomotive *loco);
 #endif /* INC_LOCOMOTIVE_H_ */

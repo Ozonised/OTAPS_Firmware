@@ -1,10 +1,27 @@
-
+/* USER CODE BEGIN Header */
+/**
+ ******************************************************************************
+ * @file           : main.c
+ * @brief          : Main program body
+ ******************************************************************************
+ * @attention
+ *
+ * Copyright (c) 2024 STMicroelectronics.
+ * All rights reserved.
+ *
+ * This software is licensed under terms that can be found in the LICENSE file
+ * in the root directory of this software component.
+ * If no LICENSE file comes with this software, it is provided AS-IS.
+ *
+ ******************************************************************************
+ */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdbool.h>
 #include "nrf24.h"
 #include "ui.h"
 /* USER CODE END Includes */
@@ -29,8 +46,17 @@ I2C_HandleTypeDef hi2c1;
 
 SPI_HandleTypeDef hspi1;
 
-/* USER CODE BEGIN PV */
+TIM_HandleTypeDef htim1;
 
+/* USER CODE BEGIN PV */
+static volatile bool nrf1IRQTriggered = false;
+
+static NRF24 nrf24 = { &hspi1, NRF_CSN1_GPIO_Port, NRF_CSN1_Pin,
+NRF_CE1_Pin, NRF_IRQ1_Pin };
+
+Locomotive locomotive = { 0 };
+
+SSD1306 display;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -38,8 +64,13 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
+static void MX_TIM1_Init(void);
 /* USER CODE BEGIN PFP */
 
+static void inline setSpeed(uint8_t percentage)
+{
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, (percentage * MAX_PWM_VAL) / 100);
+}
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -78,18 +109,34 @@ int main(void)
   MX_GPIO_Init();
   MX_I2C1_Init();
   MX_SPI1_Init();
+  MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 
+	locomotive.id = LOCOMOTIVE_NODE_ID;
+
+	nRF24_Init(&nrf24);
+	nRF24_SetAddrWidth(&nrf24, 5);
+	nRF24_SetRFChannel(&nrf24, RF_CHANNEL);
+	nRF24_SetDataRate(&nrf24, NRF24_DATA_RATE);
+	nRF24_SetCRCScheme(&nrf24, nRF24_CRC_2byte);
+	nRF24_SetTXPower(&nrf24, NRF24_TX_PWR);
+	nRF24_SetAutoRetr(&nrf24, NRF24_AUTO_RETRY_DELAY, NRF24_AUTO_RETRY_COUNT);
+
+	nRF24_EnableAA(&nrf24, nRF24_PIPE0);
+	nRF24_SetOperationalMode(&nrf24, nRF24_MODE_TX);
+	nRF24_SetDynamicPayloadLength(&nrf24, nRF24_DPL_ON);
+	nRF24_SetPayloadWithAck(&nrf24, 1);
+	nRF24_SetPowerMode(&nrf24, nRF24_PWR_UP);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+	while (1)
+	{
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  }
+	}
   /* USER CODE END 3 */
 }
 
@@ -205,6 +252,81 @@ static void MX_SPI1_Init(void)
 }
 
 /**
+  * @brief TIM1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM1_Init(void)
+{
+
+  /* USER CODE BEGIN TIM1_Init 0 */
+
+  /* USER CODE END TIM1_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+  TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
+
+  /* USER CODE BEGIN TIM1_Init 1 */
+
+  /* USER CODE END TIM1_Init 1 */
+  htim1.Instance = TIM1;
+  htim1.Init.Prescaler = 100;
+  htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim1.Init.Period = 400;
+  htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim1.Init.RepetitionCounter = 0;
+  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_ENABLE;
+  sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
+  sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
+  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
+  sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
+  sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
+  sBreakDeadTimeConfig.DeadTime = 0;
+  sBreakDeadTimeConfig.BreakState = TIM_BREAK_DISABLE;
+  sBreakDeadTimeConfig.BreakPolarity = TIM_BREAKPOLARITY_HIGH;
+  sBreakDeadTimeConfig.AutomaticOutput = TIM_AUTOMATICOUTPUT_DISABLE;
+  if (HAL_TIMEx_ConfigBreakDeadTime(&htim1, &sBreakDeadTimeConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM1_Init 2 */
+
+  /* USER CODE END TIM1_Init 2 */
+  HAL_TIM_MspPostInit(&htim1);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -255,11 +377,11 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(NRF_IRQ1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : SIGNAL_RST_SW_Pin */
-  GPIO_InitStruct.Pin = SIGNAL_RST_SW_Pin;
+  /*Configure GPIO pin : TRAIN_DIR_SW_Pin */
+  GPIO_InitStruct.Pin = TRAIN_DIR_SW_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(SIGNAL_RST_SW_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(TRAIN_DIR_SW_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LED_RED_Pin */
   GPIO_InitStruct.Pin = LED_RED_Pin;
@@ -277,7 +399,159 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+static void inline locomotiveOperation(void)
+{
+	static unsigned long currentMillis, prevTxMillis, prevSwitchMillis;
+	static Signal prevSignalState = SIGNAL_NOT_KNOWN;
+	static Payload payload = { 0 };
+	bool isPayloadValid = false, currentSwitchState, switchedNode = false;
+	static bool prevSwitchState = true;
 
+	currentMillis = HAL_GetTick();
+
+	// train dir switch state
+	if (currentMillis - prevSwitchMillis >= SW_SAMPLING_INTERVAL)
+	{
+		currentSwitchState = HAL_GPIO_ReadPin(TRAIN_DIR_SW_GPIO_Port, TRAIN_DIR_SW_Pin);
+
+		// switch has been pressed, change locomotive direction
+		if (currentSwitchState == GPIO_PIN_RESET && prevSwitchState == GPIO_PIN_SET)
+		{
+			switch (locomotive.dir)
+			{
+			case TO_HIGHER_NODE:
+				locomotive.dir = TO_LOWER_NODE;
+				locomotive.comNodeNo = TOTAL_NO_OF_NODES;
+				locomotive.comNodeID = NODE_IDS[locomotive.comNodeNo - 1];
+				break;
+
+			default:
+				locomotive.dir = TO_HIGHER_NODE;
+				locomotive.comNodeNo = 1;
+				locomotive.comNodeID = NODE_IDS[locomotive.comNodeNo - 1];
+				break;
+			}
+			prevSwitchState = currentSwitchState;
+		}
+		prevSwitchMillis = currentMillis;
+	}
+
+	if (currentMillis - prevTxMillis >= TX_INTERVAL)
+	{
+		// Deassert the CE pin (in case if it still high)
+		nRF24_CE_L(&nrf24);
+
+		if (nRF24_GetStatus_TXFIFO(&nrf24) == nRF24_STATUS_TXFIFO_FULL)
+			nRF24_FlushTX(&nrf24);
+
+		if (nRF24_GetStatus_RXFIFO(&nrf24) == nRF24_STATUS_RXFIFO_FULL)
+			nRF24_FlushRX(&nrf24);
+
+		// Transfer a data from the specified buffer to the TX FIFO
+		nRF24_WritePayload(&nrf24, payload.transmitPayload, PAYLOAD_LENGTH);
+
+		// Start a transmission by asserting CE pin (must be held at least 10us)
+		nRF24_CE_H(&nrf24);
+
+		prevTxMillis = currentMillis;
+	}
+
+	if (nrf1IRQTriggered)
+	{
+		uint8_t payloadLength = PAYLOAD_LENGTH;
+		uint8_t status = 0;
+
+		status = nRF24_GetStatus(&nrf24);
+
+		// nRF24_FLAG_RX_DR bit is when the ack payload is received from PRX
+		if ((status & nRF24_FLAG_RX_DR )
+				&& nRF24_ReadPayloadDpl(&nrf24, payload.receivePayload, &payloadLength) == nRF24_RX_PIPE0)
+		{
+			isPayloadValid = isPayLoadValid(&locomotive, &payload);
+			if (isPayloadValid)
+			{
+				extractPayloadData(&locomotive, &payload);
+				HAL_GPIO_TogglePin(LED_BUILTIN_GPIO_Port, LED_BUILTIN_Pin);
+			}
+		}
+
+		// Deassert the CE pin (Standby-II --> Standby-I)
+		nRF24_CE_L(&nrf24);
+		nRF24_ClearIRQFlags(&nrf24);
+
+		nrf1IRQTriggered = false;
+	}
+
+	if (isPayloadValid)
+	{
+		updateLocomotiveState(&locomotive);
+
+		// if the current communicating node signal turned red but was previously green, double yellow or yellow
+		// then the locomotive as reached the current communicating signal.
+		if (locomotive.signalData[0] == RED
+				&& (prevSignalState == GREEN || prevSignalState == DOUBLE_YELLOW || prevSignalState == YELLOW))
+		{
+			// switching to next communication node
+			switch (locomotive.dir)
+			{
+			case TO_HIGHER_NODE:
+				if (locomotive.comNodeNo < TOTAL_NO_OF_NODES)
+					locomotive.comNodeNo++;
+				break;
+
+			case TO_LOWER_NODE:
+				if (locomotive.comNodeNo > 1)
+					locomotive.comNodeNo--;
+				break;
+
+			default:
+				break;
+			}
+			switchedNode = true;
+			prevSignalState = locomotive.signalData[0];
+		}
+
+		// the train switches the node when the signal it is communicating with turned RED
+		// signifying that the train crossed that signal.
+		// However, this changes the locomotive state to STOP which makes the train to apply brakes until it has acquired the
+		// state of the next signal. To avoid this behavior, a check is made to see whether the train has switched nodes
+		// if it has then it wont change the speed
+		if (switchedNode == false)
+		{
+			// set the speed as per the locomotive state
+			switch (locomotive.state)
+			{
+			case GO:
+				HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+				setSpeed(60);
+				break;
+			case SLOW_DOWN:
+				setSpeed(30);
+				break;
+
+			case STOP:
+				setSpeed(0);
+				break;
+
+			default:
+				break;
+			}
+		}
+		updateUI(&display, &locomotive);
+		switchedNode = false;
+		isPayloadValid = false;
+	}
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+
+	if (GPIO_Pin == NRF_IRQ1_Pin)
+	{
+		nrf1IRQTriggered = true;
+	}
+
+}
 /* USER CODE END 4 */
 
 /**
@@ -287,11 +561,11 @@ static void MX_GPIO_Init(void)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
-  __disable_irq();
-  while (1)
-  {
-  }
+	/* User can add his own implementation to report the HAL error return state */
+	__disable_irq();
+	while (1)
+	{
+	}
   /* USER CODE END Error_Handler_Debug */
 }
 

@@ -49,6 +49,8 @@ extern I2C_HandleTypeDef hi2c1;
 
 /* USER CODE END EM */
 
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
+
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
 
@@ -66,8 +68,8 @@ void Error_Handler(void);
 #define NRF_IRQ1_Pin GPIO_PIN_10
 #define NRF_IRQ1_GPIO_Port GPIOB
 #define NRF_IRQ1_EXTI_IRQn EXTI15_10_IRQn
-#define SIGNAL_RST_SW_Pin GPIO_PIN_13
-#define SIGNAL_RST_SW_GPIO_Port GPIOB
+#define TRAIN_DIR_SW_Pin GPIO_PIN_13
+#define TRAIN_DIR_SW_GPIO_Port GPIOB
 #define LED_RED_Pin GPIO_PIN_15
 #define LED_RED_GPIO_Port GPIOA
 #define LED_YELLOW1_Pin GPIO_PIN_3
