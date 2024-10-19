@@ -8,7 +8,6 @@
 #include <string.h>
 #include "locomotive.h"
 
-void UI_Init();
-void updateUI();
-
+void UI_Init(SSD1306 *oled);
+void updateUI(SSD1306 *oled, Locomotive *loco);
 #endif /* INC_UI_H_ */

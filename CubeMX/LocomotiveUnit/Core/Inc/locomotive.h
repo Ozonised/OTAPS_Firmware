@@ -5,6 +5,8 @@
 #include "nrf24.h"
 #include "config.h"
 #include "stdbool.h"
+#include "payload.h"
+#include "string.h"
 
 typedef enum
 {
@@ -38,14 +40,19 @@ typedef enum
 
 typedef struct
 {
+	uint8_t receivePayload[PAYLOAD_LENGTH];
+	uint8_t transmitPayload[PAYLOAD_LENGTH];
+} Payload;
+
+typedef struct
+{
     TrainDirection dir;
     TrainState state;
     LineState line;
     Signal signalData[NO_OF_NODES_TO_MONITOR + 1];
+    uint8_t id;
     uint8_t comNodeNo;
     bool isComNodeReady;
 } Locomotive;
-
-extern Locomotive locomotive;
 
 #endif /* INC_LOCOMOTIVE_H_ */
