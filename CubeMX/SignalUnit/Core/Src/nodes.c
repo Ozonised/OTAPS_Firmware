@@ -208,7 +208,7 @@ void extractPayloadData(Payload *p, uint8_t communicatingNodeID)
 		temp = p->receivePayload[C_N1_NODE_INDEX];
 		thisNode.next->signalData[1] = (temp & 0x0F);	// signal state of the first node after the next node
 		thisNode.next->signalData[0] = (temp >> 4);	// signal state of the next node, i.e, the node that transmitted the data
-		thisNode.next->signal = (Signal)thisNode.next->signalData[0];
+		thisNode.next->signal = (Signal) thisNode.next->signalData[0];
 
 		temp = p->receivePayload[N2_N3_NODE_INDEX];
 		thisNode.next->signalData[2] = (temp >> 4);	// signal state of the second node after next node
@@ -223,7 +223,7 @@ void extractPayloadData(Payload *p, uint8_t communicatingNodeID)
 
 		temp = p->receivePayload[C_N1_NODE_INDEX];
 		thisNode.prev->signalData[0] = (temp >> 4);	// signal state of the previous node, i.e, the node that transmitted the data
-		thisNode.prev->signal = (Signal)thisNode.prev->signalData[0];
+		thisNode.prev->signal = (Signal) thisNode.prev->signalData[0];
 
 		temp = p->receivePayload[P2_P1_NODE_INDEX];
 		thisNode.prev->signalData[1] = (temp & 0x0F);	// signal state of the first node after the previous node
@@ -235,11 +235,11 @@ void extractPayloadData(Payload *p, uint8_t communicatingNodeID)
  * @brief updates the transmit payload
  *
  * @param p pointer to payload object
- * @param communicatingNodeID ID of the node to send data to
+ * @param destinationNodeID ID of the node to send data to
  *
  * @return None
  */
-void updateTxPayload(Payload *p, uint8_t communicatingNodeID)
+void updateTxPayload(Payload *p, uint8_t destinationNodeID)
 {
 	memset(p->transmitPayload, 0, PAYLOAD_LENGTH);
 
@@ -248,13 +248,7 @@ void updateTxPayload(Payload *p, uint8_t communicatingNodeID)
 
 	// 2nd byte
 	// destination ID
-	if (communicatingNodeID == thisNode.prev->nodeID)
-	{
-		p->transmitPayload[DESTINATION_ID_INDEX] = thisNode.prev->nodeID;
-	} else if (communicatingNodeID == thisNode.next->nodeID)
-	{
-		p->transmitPayload[DESTINATION_ID_INDEX] = thisNode.next->nodeID;
-	}
+	p->transmitPayload[DESTINATION_ID_INDEX] = destinationNodeID;
 
 	// 3rd byte
 	p->transmitPayload[AXLE_COUNT_INDEX] = thisNode.axleCount; // axle count

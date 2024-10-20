@@ -166,6 +166,8 @@ int main(void)
 	/* Infinite loop */
 	/* USER CODE BEGIN WHILE */
 
+	// if a previous node exist and this node is a slave
+	// then write the ack payload and set the respective nrf module in RX mode
 	if (thisNode.prev != NULL)
 	{
 		updateTxPayload(prevSignalNode.pl, thisNode.prev->nodeID);
@@ -180,6 +182,8 @@ int main(void)
 		}
 	}
 
+	// if a next node exist and this node is a slave
+	// then write the ack payload and set the respective nrf module in RX mode
 	if (thisNode.next != NULL)
 	{
 		updateTxPayload(nextSignalNode.pl, thisNode.next->nodeID);
@@ -194,6 +198,9 @@ int main(void)
 		}
 	}
 
+	// initializing the locomotive nrf module
+	updateTxPayload(locomotiveNode.pl, LOCOMOTIVE_NODE_ID);
+	nRF24_WriteAckPayload(locomotiveNode.nrf, nRF24_PIPE0, (char*) locomotiveNode.pl->transmitPayload, PAYLOAD_LENGTH);
 	// write ack payload
 	nRF24_CE_H(locomotiveNode.nrf);	// start receiving
 
@@ -552,14 +559,18 @@ static void inline masterNode(void)
 	if (nrf3IRQTriggered)
 	{
 		payloadLength = PAYLOAD_LENGTH;
-		status = nRF24_GetStatus(currentComNode->nrf);
+		status = nRF24_GetStatus(locomotiveNode.nrf);
 
 		if ((status & nRF24_FLAG_RX_DR )
-				&& nRF24_ReadPayloadDpl(locomotiveNode.nrf, locomotiveNodePayload.receivePayload, &payloadLength)
+				&& nRF24_ReadPayloadDpl(locomotiveNode.nrf, locomotiveNode.pl->receivePayload, &payloadLength)
 						== nRF24_RX_PIPE0)
 		{
-			// process locomotive payload
+			// response received from locomotive node, but there's no use for that response(at least for now)
+			// so it is simply flushed away
+			nRF24_FlushRX(locomotiveNode.nrf);
+			nRF24_WriteAckPayload(locomotiveNode.nrf, nRF24_PIPE0, (char *)locomotiveNode.pl->transmitPayload, PAYLOAD_LENGTH);
 		}
+		nRF24_ClearIRQFlags(locomotiveNode.nrf);
 		nrf3IRQTriggered = false;
 	}
 
@@ -573,6 +584,7 @@ static void inline masterNode(void)
 			updateTxPayload(&nextNodePayload, thisNode.next->nodeID);
 
 		// update locomotive node payload
+		updateTxPayload(locomotiveNode.pl, LOCOMOTIVE_NODE_ID);
 
 		if (thisNode.nodeReady != true)
 		{
@@ -655,14 +667,21 @@ static void inline slaveNode(void)
 	if (nrf3IRQTriggered)
 	{
 		payloadLength = PAYLOAD_LENGTH;
-		status = nRF24_GetStatus(currentComNode->nrf);
+		status = nRF24_GetStatus(locomotiveNode.nrf);
 
 		if ((status & nRF24_FLAG_RX_DR )
-				&& nRF24_ReadPayloadDpl(locomotiveNode.nrf, locomotiveNodePayload.receivePayload, &payloadLength)
+				&& nRF24_ReadPayloadDpl(locomotiveNode.nrf, locomotiveNode.pl->receivePayload, &payloadLength)
 						== nRF24_RX_PIPE0)
 		{
-			// process locomotive payload
+			// response received from locomotive node, but there's no use for that response(at least for now)
+			// so it is simply flushed away
+			nRF24_FlushRX(locomotiveNode.nrf);
+			if (nRF24_GetStatus_TXFIFO(locomotiveNode.nrf) == nRF24_STATUS_TXFIFO_FULL)
+				nRF24_FlushTX(locomotiveNode.nrf);
+
+			nRF24_WriteAckPayload(locomotiveNode.nrf, nRF24_PIPE0, (char *)locomotiveNode.pl->transmitPayload, PAYLOAD_LENGTH);
 		}
+		nRF24_ClearIRQFlags(locomotiveNode.nrf);
 		nrf3IRQTriggered = false;
 	}
 
@@ -692,6 +711,7 @@ static void inline slaveNode(void)
 		}
 
 		// update locomotive node payload
+		updateTxPayload(locomotiveNode.pl, LOCOMOTIVE_NODE_ID);
 
 		if (thisNode.nodeReady != true)
 		{
