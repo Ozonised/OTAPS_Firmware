@@ -1,6 +1,5 @@
 #include "locomotive.h"
 
-
 /*
  * @brief Checks if payload is valid
  *
@@ -14,8 +13,8 @@
 bool isPayLoadValid(Locomotive *loco, Payload *p)
 {
 	// validate if payload received from current node
-	if (p->receivePayload[SOURCE_ID_INDEX] != loco->id
-			&& p->receivePayload[DESTINATION_ID_INDEX] != loco->comNodeID)
+	if (p->receivePayload[SOURCE_ID_INDEX] != loco->comNodeID
+			&& p->receivePayload[DESTINATION_ID_INDEX] != loco->id)
 		return false;
 
 	unsigned short sum = 0;

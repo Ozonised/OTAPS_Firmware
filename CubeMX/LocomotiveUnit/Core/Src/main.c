@@ -138,6 +138,9 @@ int main(void)
 	/* USER CODE BEGIN WHILE */
 	UI_Init(&display);
 	updateUI(&display, &locomotive);
+	HAL_GPIO_WritePin(LED_YELLOW1_GPIO_Port, LED_YELLOW1_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(LED_YELLOW1_GPIO_Port, LED_YELLOW2_Pin, GPIO_PIN_SET);
+
 	while (1)
 	{
 		/* USER CODE END WHILE */
@@ -428,26 +431,35 @@ static void inline locomotiveOperation(void)
 				locomotive.dir = TO_LOWER_NODE;
 				locomotive.comNodeNo = TOTAL_NO_OF_NODES;
 				locomotive.comNodeID = NODE_IDS[locomotive.comNodeNo - 1];
+
+				HAL_GPIO_WritePin(LED_YELLOW1_GPIO_Port, LED_YELLOW1_Pin, GPIO_PIN_SET);
+				HAL_GPIO_WritePin(LED_YELLOW1_GPIO_Port, LED_YELLOW2_Pin, GPIO_PIN_RESET);
 				break;
 
 			default:
 				locomotive.dir = TO_HIGHER_NODE;
 				locomotive.comNodeNo = 1;
 				locomotive.comNodeID = NODE_IDS[locomotive.comNodeNo - 1];
+
+				HAL_GPIO_WritePin(LED_YELLOW1_GPIO_Port, LED_YELLOW1_Pin, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(LED_YELLOW1_GPIO_Port, LED_YELLOW2_Pin, GPIO_PIN_SET);
 				break;
 			}
-			prevSwitchState = currentSwitchState;
 		}
+			prevSwitchState = currentSwitchState;
 		prevSwitchMillis = currentMillis;
 	}
 
 	if (currentMillis - prevTxMillis >= TX_INTERVAL)
 	{
-		nRF24_SetAddr(&nrf24, nRF24_PIPETX, NODE_ADDRESS[locomotive.comNodeNo]);
-		nRF24_SetAddr(&nrf24, nRF24_PIPE0, NODE_ADDRESS[locomotive.comNodeNo]);
+		nRF24_SetAddr(&nrf24, nRF24_PIPETX, NODE_ADDRESS[locomotive.comNodeNo - 1]);
+		nRF24_SetAddr(&nrf24, nRF24_PIPE0, NODE_ADDRESS[locomotive.comNodeNo - 1]);
 
 		// Deassert the CE pin (in case if it still high)
 		nRF24_CE_L(&nrf24);
+
+		payload.transmitPayload[0] = locomotive.id;
+		payload.transmitPayload[1] = locomotive.comNodeID;
 
 		if (nRF24_GetStatus_TXFIFO(&nrf24) == nRF24_STATUS_TXFIFO_FULL)
 			nRF24_FlushTX(&nrf24);
@@ -456,7 +468,7 @@ static void inline locomotiveOperation(void)
 			nRF24_FlushRX(&nrf24);
 
 		// Transfer a data from the specified buffer to the TX FIFO
-		nRF24_WritePayload(&nrf24, payload.transmitPayload, PAYLOAD_LENGTH);
+		nRF24_WritePayload(&nrf24, payload.transmitPayload, LOCOMOTIVE_PAYLOAD_LENGTH);
 
 		// Start a transmission by asserting CE pin (must be held at least 10us)
 		nRF24_CE_H(&nrf24);
@@ -504,20 +516,26 @@ static void inline locomotiveOperation(void)
 			{
 			case TO_HIGHER_NODE:
 				if (locomotive.comNodeNo < TOTAL_NO_OF_NODES)
+				{
 					locomotive.comNodeNo++;
+					locomotive.comNodeID = NODE_IDS[locomotive.comNodeNo - 1];
+				}
 				break;
 
 			case TO_LOWER_NODE:
 				if (locomotive.comNodeNo > 1)
+				{
 					locomotive.comNodeNo--;
+					locomotive.comNodeID = NODE_IDS[locomotive.comNodeNo - 1];
+				}
 				break;
 
 			default:
 				break;
 			}
 			switchedNode = true;
-			prevSignalState = locomotive.signalData[0];
 		}
+
 
 		// the train switches the node when the signal it is communicating with turned RED
 		// signifying that the train crossed that signal.
@@ -530,7 +548,7 @@ static void inline locomotiveOperation(void)
 			switch (locomotive.state)
 			{
 			case GO:
-				HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+				HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
 				setSpeed(60);
 				break;
 			case SLOW_DOWN:
@@ -545,9 +563,10 @@ static void inline locomotiveOperation(void)
 				break;
 			}
 		}
-		updateUI(&display, &locomotive);
+		prevSignalState = locomotive.signalData[0];
 		switchedNode = false;
 		isPayloadValid = false;
+		updateUI(&display, &locomotive);
 	}
 }
 
