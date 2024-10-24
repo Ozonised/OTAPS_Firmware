@@ -205,6 +205,9 @@ void extractPayloadData(Payload *p, uint8_t communicatingNodeID)
 		thisNode.next->nodeReady = __GET_NODE_READY_BIT_STATE(temp);
 		thisNode.next->signalReset = __GET_SIGNAL_RESET_BIT_STATE(temp);
 
+		if (THIS_NODE_NUM != 1 && THIS_NODE_NUM != TOTAL_NO_OF_NODES)
+			thisNode.signalReset = thisNode.next->signalReset;
+
 		temp = p->receivePayload[C_N1_NODE_INDEX];
 		thisNode.next->signalData[1] = (temp & 0x0F);	// signal state of the first node after the next node
 		thisNode.next->signalData[0] = (temp >> 4);	// signal state of the next node, i.e, the node that transmitted the data
@@ -221,6 +224,9 @@ void extractPayloadData(Payload *p, uint8_t communicatingNodeID)
 		thisNode.prev->nodeReady = __GET_NODE_READY_BIT_STATE(temp);
 		thisNode.prev->signalReset = __GET_SIGNAL_RESET_BIT_STATE(temp);
 
+		if (THIS_NODE_NUM != 1 && THIS_NODE_NUM != TOTAL_NO_OF_NODES)
+			thisNode.signalReset = thisNode.prev->signalReset;
+
 		temp = p->receivePayload[C_N1_NODE_INDEX];
 		thisNode.prev->signalData[0] = (temp >> 4);	// signal state of the previous node, i.e, the node that transmitted the data
 		thisNode.prev->signal = (Signal) thisNode.prev->signalData[0];
@@ -232,7 +238,7 @@ void extractPayloadData(Payload *p, uint8_t communicatingNodeID)
 }
 
 /**
- * @brief updates the transmit payload
+ * @brief Updates the transmit buffer
  *
  * @param p pointer to payload object
  * @param destinationNodeID ID of the node to send data to
@@ -265,9 +271,12 @@ void updateTxPayload(Payload *p, uint8_t destinationNodeID)
 
 	// 4th byte
 	// set the signal reset bit only if it is the first or the last node
-	if (thisNode.signalReset && (THIS_NODE_NUM == 1 || THIS_NODE_NUM == TOTAL_NO_OF_NODES))
+	if (thisNode.signalReset && (THIS_NODE_NUM < 3 || (TOTAL_NO_OF_NODES - THIS_NODE_NUM) < 3))
 	{
 		p->transmitPayload[STATUS_P3_NODE_INDEX] |= (1 << __SIGNAL_RESET_BIT_INDEX);
+	} else
+	{
+		p->transmitPayload[STATUS_P3_NODE_INDEX] &= ~(1 << __SIGNAL_RESET_BIT_INDEX);
 	}
 
 	if (thisNode.prev != NULL)
@@ -294,7 +303,7 @@ void updateTxPayload(Payload *p, uint8_t destinationNodeID)
 }
 
 /**
- * @brief updates the signal state
+ * @brief Updates the signal state
  *
  * @param None
  *

@@ -49,11 +49,16 @@ static NRF24 nrf2 = { &hspi1, NRF_CSN2_GPIO_Port, NRF_CSN2_Pin,
 NRF_CE2_Pin, NRF_IRQ2_Pin };
 static NRF24 nrf3 = { &hspi1, NRF_CSN3_GPIO_Port, NRF_CSN3_Pin,
 NRF_CE3_Pin, NRF_IRQ3_Pin };
+
 static Payload locomotiveNodePayload = { 0 }, prevNodePayload = { 0 }, nextNodePayload = { 0 };
+volatile Payload i2cPayload = { 0 };
+
 static ComNode prevSignalNode = { 0 }, nextSignalNode = { 0 }, locomotiveNode = { 0 };
 static ComNode *currentComNode = NULL;
 
-static volatile bool nrf1IRQTriggered = false, nrf2IRQTriggered = false, nrf3IRQTriggered = false;
+static volatile bool nrf1IRQTriggered = false, nrf2IRQTriggered = false, nrf3IRQTriggered = false, IICSignalReset = false,
+		i2cTxComplete = false;
+static volatile Signal homeSignalState;
 
 /* USER CODE END PV */
 
@@ -204,13 +209,41 @@ int main(void)
 	// write ack payload
 	nRF24_CE_H(locomotiveNode.nrf);	// start receiving
 
+	// enable i2c only for first and last node
+	if (THIS_NODE_NUM == 1 || THIS_NODE_NUM == TOTAL_NO_OF_NODES)
+	{
+		HAL_I2C_Slave_Receive_IT(&hi2c1, i2cPayload.receivePayload, IIC_RX_PAYLOAD_LENGTH);
+	}
+
 	while (1)
 	{
+		// signalReset and homeSignalState are modified in the i2c IRQ,
+		// and the only first and last node have i2c enabled
+		if (THIS_NODE_NUM == 1 || THIS_NODE_NUM == TOTAL_NO_OF_NODES)
+		{
+			thisNode.signalReset = IICSignalReset;
+
+			switch (homeSignalState)
+			{
+			case RED:
+				currentSignalState = &red;
+				break;
+
+			case GREEN:
+				currentSignalState = &green;
+				break;
+
+			default:
+				break;
+			}
+		}
+
 		// reset axle counter and signal state
-		if (HAL_GPIO_ReadPin(SIGNAL_RST_SW_GPIO_Port, SIGNAL_RST_SW_Pin) == GPIO_PIN_RESET)
+		if ((HAL_GPIO_ReadPin(SIGNAL_RST_SW_GPIO_Port, SIGNAL_RST_SW_Pin) == GPIO_PIN_RESET) || thisNode.signalReset)
 		{
 			axleCounter = 0;
 			currentSignalState = &green;
+			trainDir = TRAIN_DIR_NOT_KNOWN;
 		}
 
 		switch (nodeType)
@@ -229,6 +262,7 @@ int main(void)
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
+
 	}
 	/* USER CODE END 3 */
 }
@@ -289,7 +323,7 @@ static void MX_I2C1_Init(void)
 	hi2c1.Instance = I2C1;
 	hi2c1.Init.ClockSpeed = 400000;
 	hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
-	hi2c1.Init.OwnAddress1 = 0;
+	hi2c1.Init.OwnAddress1 = 12;
 	hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
 	hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
 	hi2c1.Init.OwnAddress2 = 0;
@@ -389,6 +423,7 @@ static void MX_GPIO_Init(void)
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
 	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
 	/*Configure GPIO pin : NRF_IRQ2_Pin */
 	GPIO_InitStruct.Pin = NRF_IRQ2_Pin;
 	GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
@@ -499,7 +534,7 @@ static void inline masterNode(void)
 		status = nRF24_GetStatus(currentComNode->nrf);
 
 		// nRF24_FLAG_RX_DR bit is when the ack payload is received from PRX
-		if ((status & nRF24_FLAG_RX_DR)
+		if ((status & nRF24_FLAG_RX_DR )
 				&& nRF24_ReadPayloadDpl(currentComNode->nrf, prevNodePayload.receivePayload, &payloadLength)
 						== nRF24_RX_PIPE0)
 		{
@@ -531,7 +566,7 @@ static void inline masterNode(void)
 		status = nRF24_GetStatus(currentComNode->nrf);
 
 		// nRF24_FLAG_RX_DR bit is when the ack payload is received from PRX
-		if ((status & nRF24_FLAG_RX_DR)
+		if ((status & nRF24_FLAG_RX_DR )
 				&& nRF24_ReadPayloadDpl(currentComNode->nrf, nextNodePayload.receivePayload, &payloadLength)
 						== nRF24_RX_PIPE0)
 		{
@@ -568,7 +603,8 @@ static void inline masterNode(void)
 			// response received from locomotive node, but there's no use for that response(at least for now)
 			// so it is simply flushed away
 			nRF24_FlushRX(locomotiveNode.nrf);
-			nRF24_WriteAckPayload(locomotiveNode.nrf, nRF24_PIPE0, (char *)locomotiveNode.pl->transmitPayload, PAYLOAD_LENGTH);
+			nRF24_WriteAckPayload(locomotiveNode.nrf, nRF24_PIPE0, (char*) locomotiveNode.pl->transmitPayload,
+			PAYLOAD_LENGTH);
 		}
 		nRF24_ClearIRQFlags(locomotiveNode.nrf);
 		nrf3IRQTriggered = false;
@@ -601,6 +637,7 @@ static void inline masterNode(void)
 
 		payload1Valid = false;
 		payload2Valid = false;
+
 	}
 
 }
@@ -679,7 +716,8 @@ static void inline slaveNode(void)
 			if (nRF24_GetStatus_TXFIFO(locomotiveNode.nrf) == nRF24_STATUS_TXFIFO_FULL)
 				nRF24_FlushTX(locomotiveNode.nrf);
 
-			nRF24_WriteAckPayload(locomotiveNode.nrf, nRF24_PIPE0, (char *)locomotiveNode.pl->transmitPayload, PAYLOAD_LENGTH);
+			nRF24_WriteAckPayload(locomotiveNode.nrf, nRF24_PIPE0, (char*) locomotiveNode.pl->transmitPayload,
+			PAYLOAD_LENGTH);
 		}
 		nRF24_ClearIRQFlags(locomotiveNode.nrf);
 		nrf3IRQTriggered = false;
@@ -727,6 +765,7 @@ static void inline slaveNode(void)
 		}
 		payload1Valid = false;
 		payload2Valid = false;
+
 	}
 
 }
@@ -811,6 +850,24 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 				}
 			}
 		}
+	}
+}
+
+void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+	if (hi2c->Instance == I2C1)
+	{
+		HAL_I2C_Slave_Transmit_IT(&hi2c1, locomotiveNodePayload.transmitPayload, PAYLOAD_LENGTH);
+		IICSignalReset = i2cPayload.receivePayload[IIC_SIGNAL_RESET_INDEX];
+		homeSignalState = (Signal) i2cPayload.receivePayload[IIC_HOME_SIGNAL_STATE_INDEX];
+	}
+}
+
+void HAL_I2C_SlaveTxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+	if (hi2c->Instance == I2C1)
+	{
+		HAL_I2C_Slave_Receive_IT(&hi2c1, i2cPayload.receivePayload, IIC_RX_PAYLOAD_LENGTH);
 	}
 }
 /* USER CODE END 4 */

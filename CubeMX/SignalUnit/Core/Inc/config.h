@@ -1,10 +1,3 @@
-/*
- * config.h
- *
- *  Created on: Oct 6, 2024
- *      Author: farhan
- */
-
 #ifndef INC_CONFIG_H_
 #define INC_CONFIG_H_
 
