@@ -219,7 +219,6 @@ static void MX_I2C1_Init(void)
 	/* USER CODE BEGIN I2C1_Init 2 */
 
 	/* USER CODE END I2C1_Init 2 */
-
 }
 
 /**
@@ -257,7 +256,6 @@ static void MX_SPI1_Init(void)
 	/* USER CODE BEGIN SPI1_Init 2 */
 
 	/* USER CODE END SPI1_Init 2 */
-
 }
 
 /**
@@ -332,7 +330,6 @@ static void MX_TIM1_Init(void)
 
 	/* USER CODE END TIM1_Init 2 */
 	HAL_TIM_MspPostInit(&htim1);
-
 }
 
 /**
@@ -445,8 +442,11 @@ static void inline locomotiveOperation(void)
 				HAL_GPIO_WritePin(LED_YELLOW1_GPIO_Port, LED_YELLOW2_Pin, GPIO_PIN_SET);
 				break;
 			}
+			prevSignalState = SIGNAL_NOT_KNOWN;
+			memset(locomotive.signalData, SIGNAL_NOT_KNOWN, sizeof(locomotive.signalData));
+			memset(payload.receivePayload, 0, PAYLOAD_LENGTH);
 		}
-			prevSwitchState = currentSwitchState;
+		prevSwitchState = currentSwitchState;
 		prevSwitchMillis = currentMillis;
 	}
 
@@ -511,6 +511,7 @@ static void inline locomotiveOperation(void)
 		if (locomotive.signalData[0] == RED
 				&& (prevSignalState == GREEN || prevSignalState == DOUBLE_YELLOW || prevSignalState == YELLOW))
 		{
+			switchedNode = true;
 			// switching to next communication node
 			switch (locomotive.dir)
 			{
@@ -533,9 +534,10 @@ static void inline locomotiveOperation(void)
 			default:
 				break;
 			}
-			switchedNode = true;
+			prevSignalState = SIGNAL_NOT_KNOWN;
+			memset(locomotive.signalData, SIGNAL_NOT_KNOWN, sizeof(locomotive.signalData));
+			memset(payload.receivePayload, 0, PAYLOAD_LENGTH);
 		}
-
 
 		// the train switches the node when the signal it is communicating with turned RED
 		// signifying that the train crossed that signal.
@@ -552,18 +554,20 @@ static void inline locomotiveOperation(void)
 				setSpeed(60);
 				break;
 			case SLOW_DOWN:
+				HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
 				setSpeed(30);
 				break;
 
 			case STOP:
 				setSpeed(0);
+				HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_2);
 				break;
 
 			default:
 				break;
 			}
+			prevSignalState = locomotive.signalData[0];
 		}
-		prevSignalState = locomotive.signalData[0];
 		switchedNode = false;
 		isPayloadValid = false;
 		updateUI(&display, &locomotive);
@@ -577,7 +581,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 	{
 		nrf1IRQTriggered = true;
 	}
-
 }
 /* USER CODE END 4 */
 
@@ -596,19 +599,19 @@ void Error_Handler(void)
 	/* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
+ * @brief  Reports the name of the source file and the source line number
+ *         where the assert_param error has occurred.
+ * @param  file: pointer to the source file name
+ * @param  line: assert_param error line source number
+ * @retval None
+ */
 void assert_failed(uint8_t *file, uint32_t line)
 {
-  /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
-     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
-  /* USER CODE END 6 */
+	/* USER CODE BEGIN 6 */
+	/* User can add his own implementation to report the file name and line number,
+	   ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+	/* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
