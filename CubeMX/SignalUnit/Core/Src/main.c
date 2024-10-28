@@ -57,8 +57,9 @@ static ComNode prevSignalNode = { 0 }, nextSignalNode = { 0 }, locomotiveNode = 
 static ComNode *currentComNode = NULL;
 
 static volatile bool nrf1IRQTriggered = false, nrf2IRQTriggered = false, nrf3IRQTriggered = false, IICSignalReset = false,
-		i2cTxComplete = false;
-static volatile Signal homeSignalState;
+		newI2CPayload = false;
+static volatile Signal homeSignalBtnState;
+static Signal prevHomeSignalBtnState;
 
 /* USER CODE END PV */
 
@@ -209,7 +210,7 @@ int main(void)
 	// write ack payload
 	nRF24_CE_H(locomotiveNode.nrf);	// start receiving
 
-	// enable i2c only for first and last node
+	// enable i2c only for first and last node, that is the home signals
 	if (THIS_NODE_NUM == 1 || THIS_NODE_NUM == TOTAL_NO_OF_NODES)
 	{
 		HAL_I2C_Slave_Receive_IT(&hi2c1, i2cPayload.receivePayload, IIC_RX_PAYLOAD_LENGTH);
@@ -217,25 +218,25 @@ int main(void)
 
 	while (1)
 	{
-		// signalReset and homeSignalState are modified in the i2c IRQ,
+		// IICSignalReset and homeSignalBtnState are modified in the i2c IRQ,
 		// and the only first and last node have i2c enabled
-		if (THIS_NODE_NUM == 1 || THIS_NODE_NUM == TOTAL_NO_OF_NODES)
+		if ((THIS_NODE_NUM == 1 || THIS_NODE_NUM == TOTAL_NO_OF_NODES) && newI2CPayload)
 		{
 			thisNode.signalReset = IICSignalReset;
 
-			switch (homeSignalState)
-			{
-			case RED:
-				currentSignalState = &red;
-				break;
+		    // set signalState to RED when Home Signal switch toggles from 0 to 1
+		    // set signalState to GREEN when Home Signal switch toggle from 1 to 0
+		    // else set it to SIGNAL_NOT_KNOWN
+		    if (homeSignalBtnState != prevHomeSignalBtnState) {
+		      if (homeSignalBtnState)
+					currentSignalState = &red;
+		      else {
+					currentSignalState = &green;
+		      }
+		    }
+		    prevHomeSignalBtnState = homeSignalBtnState;
 
-			case GREEN:
-				currentSignalState = &green;
-				break;
-
-			default:
-				break;
-			}
+			newI2CPayload = false;
 		}
 
 		// reset axle counter and signal state
@@ -859,7 +860,8 @@ void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
 	{
 		HAL_I2C_Slave_Transmit_IT(&hi2c1, locomotiveNodePayload.transmitPayload, PAYLOAD_LENGTH);
 		IICSignalReset = i2cPayload.receivePayload[IIC_SIGNAL_RESET_INDEX];
-		homeSignalState = (Signal) i2cPayload.receivePayload[IIC_HOME_SIGNAL_STATE_INDEX];
+		homeSignalBtnState = (Signal) i2cPayload.receivePayload[IIC_HOME_SIGNAL_STATE_INDEX];
+		newI2CPayload = true;
 	}
 }
 

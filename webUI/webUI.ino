@@ -14,10 +14,10 @@ enum class Signals : uint8_t {
   GREEN
 };
 
-Signals signalNodesState[4], signalState;
+Signals signalNodesState[4];
 
 uint8_t axleCounter;
-uint8_t  signalReset, homeSignalBtnState, prevHomeSignalBtnState;
+uint8_t  signalReset, homeSignalBtnState;
 
 uint8_t i2cTxPayload[2], i2cRxPayload[IIC_SIGNAL_NODE_PAYLOAD_LENGTH];
 unsigned long currentMillis, prevMillis;
@@ -34,8 +34,6 @@ BLYNK_WRITE(V3) {
 void setup() {
   Wire.begin();
   // Wire.setClock(400000);
-
-  Serial.begin(9600);
   Blynk.begin(BLYNK_AUTH_TOKEN, SSID, PASS);
   timer.setInterval(WEB_PAGE_UPDATE_INTERVAL, updateWebPage);
 }
@@ -46,35 +44,28 @@ void loop() {
 
   currentMillis = millis();
 
+  // transmit and receive i2c data every IIC_TRANSMIT_INTERVAL
   if (currentMillis - prevMillis >= IIC_TRANSMIT_INTERVAL) {
-
-    if (homeSignalBtnState != prevHomeSignalBtnState) {
-      if (homeSignalBtnState)
-        signalState = Signals::RED;
-      else
-        signalState = Signals::GREEN;
-    } else {
-      if (homeSignalBtnState == false)
-        signalState = Signals::SIGNAL_NOT_KNOWN;
-    }
-    prevHomeSignalBtnState = homeSignalBtnState;
 
     // update TX payload
     i2cTxPayload[IIC_SIGNAL_RESET_INDEX] = signalReset;
-    i2cTxPayload[IIC_HOME_SIGNAL_STATE_INDEX] = (uint8_t) signalState;
+    i2cTxPayload[IIC_HOME_SIGNAL_STATE_INDEX] = homeSignalBtnState;
 
+    // send I2C tx payload
     Wire.beginTransmission(SIGNAL_NODE_IIC_ADDRESS);
     Wire.write(i2cTxPayload, 2);
     Wire.endTransmission();
-    // delay(10);
+    // request data from the home signal
     Wire.requestFrom(SIGNAL_NODE_IIC_ADDRESS, IIC_SIGNAL_NODE_PAYLOAD_LENGTH);
     uint8_t i = 0;
 
+    // read data from the home signal
     while (Wire.available() && i < IIC_SIGNAL_NODE_PAYLOAD_LENGTH) {
       i2cRxPayload[i] = Wire.read();
       ++i;
     }
 
+    // extract payload data if 8 bytes have been read
     if (i == IIC_SIGNAL_NODE_PAYLOAD_LENGTH) {
       extractIICPayload();
     }
@@ -82,6 +73,7 @@ void loop() {
   }
 }
 
+//  extract I2C rx payload into signalNodeState
 void extractIICPayload() {
   uint8_t temp = 0;
   axleCounter = i2cRxPayload[IIC_AXLE_COUNT_INDEX];
@@ -115,6 +107,7 @@ void extractIICPayload() {
   }
 }
 
+// convert signal value into string
 const char *signalStateToStr(Signals sig) {
   switch (sig) {
     case Signals::RED:
@@ -139,9 +132,10 @@ const char *signalStateToStr(Signals sig) {
   return "X";
 }
 
+// updates the web page
 void updateWebPage() {
   char signalStr[23];
-  Blynk.virtualWrite(V0, axleCounter);
+  Blynk.virtualWrite(V0, axleCounter); // write axle counter value
   sprintf(signalStr, "| %s | %s | %s | %s |", signalStateToStr(signalNodesState[0]), signalStateToStr(signalNodesState[1]), signalStateToStr(signalNodesState[2]), signalStateToStr(signalNodesState[3]));
-  Blynk.virtualWrite(V1, signalStr);
+  Blynk.virtualWrite(V1, signalStr); // write signal state of signals to signal state label
 }

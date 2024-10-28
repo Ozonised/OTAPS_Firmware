@@ -3,3 +3,5 @@
 [Dd]ebug/
 *.launch
 *.prefs
+webUI/blynkCredentials.h
+webUI/wifiCredentials.h
