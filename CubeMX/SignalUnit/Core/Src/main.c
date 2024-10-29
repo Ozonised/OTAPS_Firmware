@@ -224,9 +224,8 @@ int main(void)
 		{
 			thisNode.signalReset = IICSignalReset;
 
-		    // set signalState to RED when Home Signal switch toggles from 0 to 1
-		    // set signalState to GREEN when Home Signal switch toggle from 1 to 0
-		    // else set it to SIGNAL_NOT_KNOWN
+		    // set currentSignalState to RED when Home Signal switch toggles from 0 to 1
+		    // set currentSignalState to GREEN when Home Signal switch toggle from 1 to 0
 		    if (homeSignalBtnState != prevHomeSignalBtnState) {
 		      if (homeSignalBtnState)
 					currentSignalState = &red;

@@ -409,8 +409,8 @@ static void inline locomotiveOperation(void)
 	static unsigned long prevTxMillis, prevSwitchMillis;
 	static Signal prevSignalState = SIGNAL_NOT_KNOWN;
 	static Payload payload = { 0 };
-	bool isPayloadValid = false, currentSwitchState, switchedNode = false;
-	static bool prevSwitchState = true;
+	static bool switchedNode = false, prevSwitchState = true;
+	bool isPayloadValid = false, currentSwitchState;
 
 	unsigned long currentMillis = HAL_GetTick();
 
@@ -502,9 +502,11 @@ static void inline locomotiveOperation(void)
 		nrf1IRQTriggered = false;
 	}
 
-	if (isPayloadValid)
+	// if the locomotive has switched signal unit, then ignore the first payload from the next signal unit
+	// this is to avoid receiving old data. The payload from the signal unit is updated with recent data
+	// only after a transmission
+	if (isPayloadValid && switchedNode == false)
 	{
-		updateLocomotiveState(&locomotive);
 
 		// if the current communicating node signal turned red but was previously green, double yellow or yellow
 		// then the locomotive as reached the current communicating signal.
@@ -534,6 +536,7 @@ static void inline locomotiveOperation(void)
 			default:
 				break;
 			}
+
 			prevSignalState = SIGNAL_NOT_KNOWN;
 			memset(locomotive.signalData, SIGNAL_NOT_KNOWN, sizeof(locomotive.signalData));
 			memset(payload.receivePayload, 0, PAYLOAD_LENGTH);
@@ -546,6 +549,7 @@ static void inline locomotiveOperation(void)
 		// if it has then it wont change the speed
 		if (switchedNode == false)
 		{
+			updateLocomotiveState(&locomotive);
 			// set the speed as per the locomotive state
 			switch (locomotive.state)
 			{
@@ -555,7 +559,7 @@ static void inline locomotiveOperation(void)
 				break;
 			case SLOW_DOWN:
 				HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
-				setSpeed(30);
+				setSpeed(50);
 				break;
 
 			case STOP:
@@ -568,9 +572,15 @@ static void inline locomotiveOperation(void)
 			}
 			prevSignalState = locomotive.signalData[0];
 		}
-		switchedNode = false;
 		isPayloadValid = false;
 		updateUI(&display, &locomotive);
+	} else
+	{
+		if (isPayloadValid && switchedNode)
+		{
+			switchedNode = false;
+			isPayloadValid = false;
+		}
 	}
 }
 

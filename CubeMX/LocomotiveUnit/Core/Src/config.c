@@ -13,4 +13,4 @@ const uint8_t NRF24_AUTO_RETRY_COUNT = 10;	// from 0 - 15
 const uint8_t RF_CHANNEL = 110;	// from 1 - 125
 const uint16_t MAX_PWM_VAL = 400;
 
-const unsigned long TX_INTERVAL = 200, SW_SAMPLING_INTERVAL = 15;
+const unsigned long TX_INTERVAL = 100, SW_SAMPLING_INTERVAL = 15;
